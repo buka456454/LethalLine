@@ -1,36 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Lethal Line Esports Platform
 
-## Getting Started
+Платформа для регистрации пользователей, проведения киберспортивных турниров и администрирования матчей.
 
-First, run the development server:
+## Tech Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- Next.js 16 (App Router) + TypeScript
+- Prisma + PostgreSQL
+- JWT auth + RBAC (`USER`, `ADMIN`, `SUPERADMIN`)
+- Framer Motion для интерактивных UI-элементов
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Цветовая палитра
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `#212121`
+- `#323232`
+- `#0d7377`
+- `#14ffec`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Быстрый запуск
 
-## Learn More
+1. Установить зависимости:
+   - `npm install`
+2. Настроить окружение:
+   - скопировать `.env.example` в `.env` и заполнить значения.
+3. Поднять БД PostgreSQL.
+4. Выполнить миграции и сиды:
+   - `npm run prisma:migrate`
+   - `npx prisma db seed`
+5. Запустить проект:
+   - `npm run dev`
 
-To learn more about Next.js, take a look at the following resources:
+## Стартовый админ
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+После `seed`:
+- Email: `superadmin@lethalline.gg`
+- Пароль: `Admin12345!`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Основные модули
 
-## Deploy on Vercel
+- Публичная главная и каталог турниров
+- Регистрация/вход
+- Подача заявки в турнир
+- Адаптивная турнирная сетка
+- Админ-панель:
+  - управление играми и турнирами
+  - модерация заявок
+  - управление ролями и банами пользователей
+  - новости/баннеры
+  - аналитика
+  - аудит действий
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Логотипы
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Положите ваши 4 логотипа в `public/logos` (например: `logo-green.svg`, `logo-cyan.svg`, `logo-dark.svg`, `logo-light.svg`).

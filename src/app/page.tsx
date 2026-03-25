@@ -1,65 +1,348 @@
+import Link from "next/link";
 import Image from "next/image";
+import { prisma } from "@/lib/prisma";
+import { isOwnerAdminSession, readSession } from "@/lib/auth";
+import { getBrandLogos, pickBrandLogo } from "@/lib/brand";
+import SaiIcon from "@/components/ui/SaiIcon";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+type HomeTournament = {
+  id: string;
+  title: string;
+  maxParticipants: number;
+  game: { name: string };
+  registrations: Array<{ id: string }>;
+};
+
+type HomeNews = {
+  id: string;
+  title: string;
+  body: string;
+  isPinned: boolean;
+  createdAt: Date;
+};
+
+export default async function Home() {
+  let tournaments: HomeTournament[] = [];
+  let banners: Awaited<ReturnType<typeof prisma.banner.findMany>> = [];
+  let latestNews: HomeNews[] = [];
+  let platformStats = {
+    users: 0,
+    games: 0,
+    activeTournaments: 0,
+    matches: 0,
+  };
+  const [session, logos] = await Promise.all([readSession(), getBrandLogos()]);
+
+  try {
+    const [usersCount, gamesCount, activeTournamentsCount, matchesCount] = await Promise.all([
+      prisma.user.count(),
+      prisma.game.count(),
+      prisma.tournament.count({
+        where: {
+          status: {
+            in: ["REGISTRATION_OPEN", "IN_PROGRESS"],
+          },
+        },
+      }),
+      prisma.match.count(),
+    ]);
+
+    platformStats = {
+      users: usersCount,
+      games: gamesCount,
+      activeTournaments: activeTournamentsCount,
+      matches: matchesCount,
+    };
+
+    [tournaments, banners, latestNews] = await Promise.all([
+      prisma.tournament.findMany({
+        include: { game: true, registrations: true },
+        orderBy: { startsAt: "asc" },
+        take: 4,
+      }) as Promise<HomeTournament[]>,
+      prisma.banner.findMany({ where: { isActive: true }, orderBy: { createdAt: "desc" }, take: 1 }),
+      prisma.newsPost.findMany({
+        orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
+        take: 3,
+      }) as Promise<HomeNews[]>,
+    ]);
+  } catch {
+    tournaments = [];
+    banners = [];
+    latestNews = [];
+    platformStats = {
+      users: 0,
+      games: 0,
+      activeTournaments: 0,
+      matches: 0,
+    };
+  }
+
+  const heroBanner = banners[0];
+  const homeLogo = pickBrandLogo(logos, 1);
+  const canAdmin = session ? isOwnerAdminSession(session) : false;
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="w-full space-y-6">
+      <section className="relative overflow-hidden rounded-2xl border border-[#323232] bg-gradient-to-br from-[#212121] via-[#212121] to-[#323232] p-8">
+        <div className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-[#0d7377]/20 blur-2xl animate-orbit-slow" />
+        <div className="pointer-events-none absolute -left-12 -bottom-12 h-32 w-32 rounded-full bg-[#14ffec]/10 blur-2xl animate-orbit-reverse" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#14ffec] to-transparent opacity-60" />
+        <p className="text-xs uppercase tracking-[0.28em] text-zinc-400">Esports Platform</p>
+        <h1 className="mt-3 max-w-3xl text-4xl font-black uppercase leading-tight tracking-[0.08em] text-[#14ffec]">
+          Организация киберспортивных матчей нового поколения
+        </h1>
+        <p className="mt-4 max-w-2xl text-zinc-300">
+          Регистрация игроков, управление турнирами по разным играм и адаптивная сетка матчей.
+        </p>
+        {heroBanner && <p className="mt-4 text-sm text-zinc-300">{heroBanner.title}</p>}
+
+        {homeLogo && (
+          <div className="mt-5 inline-flex items-center gap-3 rounded-lg border border-[#323232] bg-[#212121] px-4 py-2 animate-float-slow">
+            <Image src={homeLogo.src} alt="Главный логотип" width={40} height={40} className="h-10 w-10 object-contain" />
+            <span className="text-xs uppercase tracking-[0.16em] text-zinc-400">Core identity</span>
+          </div>
+        )}
+
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Link href="/tournaments" className="button-primary">
+            Смотреть турниры
+          </Link>
+          <Link
+            href={canAdmin ? "/admin" : "/sign-in"}
+            className="rounded-lg border border-[#323232] bg-[#323232] px-4 py-3 text-sm font-semibold text-zinc-200 hover:text-[#14ffec]"
+          >
+            {canAdmin ? "Админ-панель" : "Войти в систему"}
+          </Link>
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-xl border border-[#323232] bg-[#212121]">
+        <div className="ticker-viewport">
+          <div className="ticker-track ticker-track-a">
+            <span className="ticker-item">LETHAL LINE</span>
+            <span className="ticker-item">LETHAL LINE</span>
+            <span className="ticker-item">LETHAL LINE</span>
+            <span className="ticker-item">LETHAL LINE</span>
+            <span className="ticker-item">LETHAL LINE</span>
+            <span className="ticker-item">LETHAL LINE</span>
+          </div>
+          <div className="ticker-track ticker-track-b" aria-hidden="true">
+            <span className="ticker-item">LETHAL LINE</span>
+            <span className="ticker-item">LETHAL LINE</span>
+            <span className="ticker-item">LETHAL LINE</span>
+            <span className="ticker-item">LETHAL LINE</span>
+            <span className="ticker-item">LETHAL LINE</span>
+            <span className="ticker-item">LETHAL LINE</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-6 xl:grid-cols-8">
+        <StatCard title="Игроков на платформе" value={platformStats.users} icon="user" className="md:col-span-3 xl:col-span-3" />
+        <StatCard title="Дисциплин" value={platformStats.games} icon="star" className="md:col-span-2 xl:col-span-1" />
+        <StatCard
+          title="Активных турниров"
+          value={platformStats.activeTournaments}
+          icon="calendar"
+          className="md:col-span-3 xl:col-span-2"
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+        <StatCard title="Матчей в системе" value={platformStats.matches} icon="video" className="md:col-span-4 xl:col-span-2" />
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-3">
+        <article className="surface rounded-xl p-5 xl:col-span-2">
+          <h2 className="text-xl font-black uppercase tracking-[0.12em] text-[#14ffec]">Как работает платформа</h2>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <StepCard
+              title="1. Регистрация"
+              icon="file"
+              description="Создайте аккаунт, заполните профиль и получите доступ к турнирам."
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            <StepCard
+              title="2. Участие"
+              icon="check"
+              description="Выберите дисциплину, подайте заявку и дождитесь модерации."
+            />
+            <StepCard
+              title="3. Матчи"
+              icon="camera"
+              description="Следите за адаптивной сеткой, счетом и статусами в реальном времени."
+            />
+          </div>
+        </article>
+
+        <article className="surface rounded-xl p-5">
+          <h2 className="text-xl font-black uppercase tracking-[0.12em] text-[#14ffec]">Форматы турниров</h2>
+          <ul className="mt-4 space-y-2 text-sm text-zinc-300">
+            <li className="rounded border border-[#323232] bg-[#323232] p-3">Single Elimination - быстрый путь к финалу.</li>
+            <li className="rounded border border-[#323232] bg-[#323232] p-3">Double Elimination - шанс на камбэк через lower bracket.</li>
+            <li className="rounded border border-[#323232] bg-[#323232] p-3">Round Robin - каждый играет с каждым.</li>
+          </ul>
+        </article>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-4 xl:grid-cols-6">
+        {tournaments.map((tournament, index) => (
+          <article
+            key={tournament.id}
+            className={`surface rounded-xl p-4 transition hover:border-[#0d7377] ${
+              index === 0 ? "md:col-span-2 xl:col-span-3" : index === 1 ? "md:col-span-2 xl:col-span-2" : "xl:col-span-1"
+            }`}
           >
-            Documentation
-          </a>
+            <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">{tournament.game.name}</p>
+            <h2 className="mt-2 text-lg font-bold text-zinc-100">{tournament.title}</h2>
+            <p className="mt-2 text-sm text-zinc-400">
+              {tournament.registrations.length}/{tournament.maxParticipants} участников
+            </p>
+            <div className="mt-3 h-1.5 overflow-hidden rounded bg-[#323232]">
+              <div
+                className="h-full bg-gradient-to-r from-[#0d7377] to-[#14ffec] transition-all duration-500"
+                style={{
+                  width: `${Math.min(100, Math.round((tournament.registrations.length / tournament.maxParticipants) * 100))}%`,
+                }}
+              />
+            </div>
+            <Link href={`/tournaments/${tournament.id}`} className="mt-4 inline-block text-sm text-[#14ffec]">
+              Открыть турнир
+            </Link>
+          </article>
+        ))}
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-3">
+        <article className="surface rounded-xl p-5 lg:col-span-2">
+          <h2 className="text-xl font-black uppercase tracking-[0.12em] text-[#14ffec]">Сезонная дорожная карта</h2>
+          <div className="mt-4 space-y-3">
+            <TimelineRow stage="Q1" title="Запуск платформы" text="Регистрация, турнирные сетки, базовая модерация." />
+            <TimelineRow stage="Q2" title="Продвинутая админка" text="Роли, аудит действий, контент и аналитика." />
+            <TimelineRow stage="Q3" title="Командный режим" text="Кланы, captain-панель и расширенные правила матчей." />
+            <TimelineRow stage="Q4" title="Лиги и партнерства" text="Сезонные лиги, спонсорские блоки, публичный API." />
+          </div>
+        </article>
+
+        <article className="surface rounded-xl p-5">
+          <h2 className="text-xl font-black uppercase tracking-[0.12em] text-[#14ffec]">Быстрый FAQ</h2>
+          <div className="mt-4 space-y-2">
+            <FaqRow q="Как подать заявку?" a="Открой турнир и нажми Участвовать." />
+            <FaqRow q="Можно сменить роль?" a="Да, через модератора или superadmin." />
+            <FaqRow q="Где следить за матчем?" a="На странице турнира в live-сетке." />
+          </div>
+        </article>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-3">
+        <article className="surface rounded-xl p-5 lg:col-span-1">
+          <h2 className="text-xl font-black uppercase tracking-[0.12em] text-[#14ffec]">Почему Lethal Line</h2>
+          <ul className="mt-4 space-y-2 text-sm text-zinc-300">
+            <li className="rounded border border-[#323232] bg-[#323232] p-3">Гибкая админ-система: роли, модерация, audit log.</li>
+            <li className="rounded border border-[#323232] bg-[#323232] p-3">Адаптивная турнирная сетка для мобильных и desktop.</li>
+            <li className="rounded border border-[#323232] bg-[#323232] p-3">Современный dark UI с динамичными акцентами.</li>
+          </ul>
+        </article>
+
+        <article className="surface rounded-xl p-5 lg:col-span-2">
+          <h2 className="text-xl font-black uppercase tracking-[0.12em] text-[#14ffec]">Новости и обновления</h2>
+          <div className="mt-4 space-y-3">
+            {latestNews.length === 0 && <p className="text-sm text-zinc-400">Новостей пока нет.</p>}
+            {latestNews.map((news) => (
+              <article key={news.id} className="rounded border border-[#323232] bg-[#323232] p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold text-zinc-100">{news.title}</h3>
+                  {news.isPinned && (
+                    <span className="rounded bg-[#0d7377] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-black">
+                      pinned
+                    </span>
+                  )}
+                </div>
+                <p className="mt-2 text-xs text-zinc-300">{news.body.slice(0, 140)}</p>
+              </article>
+            ))}
+          </div>
+        </article>
+      </section>
+
+      <section className="relative overflow-hidden rounded-xl border border-[#323232] bg-[#212121] p-6">
+        <div className="pointer-events-none absolute inset-0 shimmer-mask opacity-40" />
+        <h2 className="text-2xl font-black uppercase tracking-[0.1em] text-[#14ffec]">Готовы запускать свой турнир?</h2>
+        <p className="mt-3 max-w-2xl text-zinc-300">
+          Подключайте дисциплины, публикуйте правила и управляйте матчами через единый админ-центр.
+        </p>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <Link href={canAdmin ? "/admin" : "/sign-in"} className="button-primary">
+            Открыть центр управления
+          </Link>
+          <Link href="/tournaments" className="rounded-lg border border-[#323232] bg-[#323232] px-4 py-3 text-sm font-semibold text-zinc-200 hover:text-[#14ffec]">
+            Перейти к турнирам
+          </Link>
         </div>
-      </main>
+      </section>
+    </div>
+  );
+}
+
+function StatCard({
+  title,
+  value,
+  icon,
+  className,
+}: {
+  title: string;
+  value: number;
+  icon: "user" | "star" | "calendar" | "video";
+  className?: string;
+}) {
+  return (
+    <article className={`surface rounded-xl p-4 transition hover:border-[#0d7377] hover:-translate-y-0.5 ${className ?? ""}`}>
+      <p className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-zinc-500">
+        <SaiIcon name={icon} />
+        {title}
+      </p>
+      <p className="mt-2 text-3xl font-black text-[#14ffec]">{value}</p>
+    </article>
+  );
+}
+
+function StepCard({
+  title,
+  icon,
+  description,
+}: {
+  title: string;
+  icon: "file" | "check" | "camera";
+  description: string;
+}) {
+  return (
+    <div className="rounded-lg border border-[#323232] bg-[#323232] p-4 transition hover:border-[#0d7377]">
+      <h3 className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-[0.12em] text-zinc-100">
+        <SaiIcon name={icon} />
+        {title}
+      </h3>
+      <p className="mt-2 text-sm text-zinc-300">{description}</p>
+    </div>
+  );
+}
+
+function TimelineRow({ stage, title, text }: { stage: string; title: string; text: string }) {
+  return (
+    <div className="grid grid-cols-[52px_1fr] gap-3 rounded border border-[#323232] bg-[#323232] p-3">
+      <div className="flex items-center justify-center rounded border border-[#0d7377] bg-[#212121] text-xs font-bold tracking-[0.12em] text-[#14ffec]">
+        {stage}
+      </div>
+      <div>
+        <p className="text-sm font-semibold text-zinc-100">{title}</p>
+        <p className="mt-1 text-xs text-zinc-300">{text}</p>
+      </div>
+    </div>
+  );
+}
+
+function FaqRow({ q, a }: { q: string; a: string }) {
+  return (
+    <div className="rounded border border-[#323232] bg-[#323232] p-3">
+      <p className="text-sm font-semibold text-zinc-100">{q}</p>
+      <p className="mt-1 text-xs text-zinc-300">{a}</p>
     </div>
   );
 }

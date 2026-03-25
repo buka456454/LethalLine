@@ -1,8 +1,11 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #212121;
+  --surface: #323232;
+  --primary: #0d7377;
+  --accent: #14ffec;
+  --foreground: #ebebeb;
 }
 
 @theme inline {
@@ -22,5 +25,156 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
+
+* {
+  border-color: #323232;
+}
+
+.input-base {
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid #323232;
+  background: #212121;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.95rem;
+  color: #f4f4f4;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.input-base:focus {
+  border-color: #0d7377;
+  box-shadow: 0 0 0 2px rgba(20, 255, 236, 0.2);
+}
+
+.button-primary {
+  border-radius: 0.6rem;
+  border: 1px solid #0d7377;
+  background: linear-gradient(90deg, #0d7377, #14ffec);
+  color: #151515;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 0.7rem 1rem;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.button-primary:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+}
+
+.button-primary:active {
+  transform: translateY(0);
+}
+
+.surface {
+  background: #212121;
+  border: 1px solid #323232;
+}
+
+.ticker-viewport {
+  display: flex;
+  overflow: hidden;
+  padding: 0.75rem 0;
+  position: relative;
+}
+
+.ticker-track {
+  display: flex;
+  flex-shrink: 0;
+  min-width: max-content;
+}
+
+.ticker-track-a {
+  animation: tickerShiftA 18s linear infinite;
+}
+
+.ticker-track-b {
+  animation: tickerShiftB 18s linear infinite;
+}
+
+.ticker-item {
+  margin: 0 1.2rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #14ffec;
+  opacity: 0.9;
+}
+
+.shimmer-mask {
+  background: linear-gradient(120deg, transparent 10%, rgba(20, 255, 236, 0.14) 35%, transparent 55%);
+  animation: shimmerSweep 5s linear infinite;
+}
+
+.animate-float-slow {
+  animation: floatSlow 4s ease-in-out infinite;
+}
+
+.animate-orbit-slow {
+  animation: orbitSlow 16s linear infinite;
+}
+
+.animate-orbit-reverse {
+  animation: orbitReverse 18s linear infinite;
+}
+
+
+@keyframes tickerShiftA {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes tickerShiftB {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes shimmerSweep {
+  0% {
+    transform: translateX(-45%);
+  }
+  100% {
+    transform: translateX(80%);
+  }
+}
+
+@keyframes floatSlow {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes orbitSlow {
+  0% {
+    transform: rotate(0deg) translateX(2px) rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg) translateX(2px) rotate(-360deg);
+  }
+}
+
+@keyframes orbitReverse {
+  0% {
+    transform: rotate(0deg) translateX(-3px) rotate(0deg);
+  }
+  100% {
+    transform: rotate(-360deg) translateX(-3px) rotate(360deg);
+  }
+}
+

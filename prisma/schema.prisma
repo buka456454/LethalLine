@@ -1,0 +1,211 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+  SUPERADMIN
+}
+
+enum TournamentFormat {
+  SINGLE_ELIMINATION
+  DOUBLE_ELIMINATION
+  ROUND_ROBIN
+}
+
+enum TournamentStatus {
+  DRAFT
+  REGISTRATION_OPEN
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum MatchStatus {
+  SCHEDULED
+  LIVE
+  FINISHED
+}
+
+enum RegistrationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum TeamApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id                   String                    @id @default(cuid())
+  email                String                    @unique
+  username             String                    @unique
+  displayName          String?
+  avatarUrl            String?
+  bio                  String?
+  passwordHash         String
+  role                 Role                      @default(USER)
+  isBanned             Boolean                   @default(false)
+  banReason            String?
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+  registrations        TournamentRegistration[]
+  captainApplications  TeamApplication[]         @relation("TeamCaptain")
+  teamApplicationLinks TeamApplicationMember[]
+  notifications        UserTournamentNotification[]
+  auditEvents          AuditLog[]                @relation("AuditActor")
+  newsPosts            NewsPost[]                @relation("NewsAuthor")
+}
+
+model Game {
+  id          String       @id @default(cuid())
+  name        String
+  slug        String       @unique
+  description String?
+  iconUrl     String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  tournaments Tournament[]
+}
+
+model Tournament {
+  id              String                     @id @default(cuid())
+  title           String
+  slug            String                     @unique
+  description     String?
+  format          TournamentFormat
+  status          TournamentStatus           @default(DRAFT)
+  maxParticipants Int
+  startsAt        DateTime
+  endsAt          DateTime?
+  rules           String?
+  isPublished     Boolean                    @default(false)
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+  gameId          String
+  game            Game                       @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  registrations   TournamentRegistration[]
+  teamApplications TeamApplication[]
+  notifications   UserTournamentNotification[]
+  matches         Match[]
+}
+
+model TournamentRegistration {
+  id           String             @id @default(cuid())
+  status       RegistrationStatus @default(PENDING)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  userId       String
+  tournamentId String
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tournament   Tournament         @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tournamentId])
+}
+
+model Match {
+  id             String      @id @default(cuid())
+  round          Int
+  orderInRound   Int
+  bracketSegment String      @default("UPPER")
+  participantA   String?
+  participantB   String?
+  scoreA         Int         @default(0)
+  scoreB         Int         @default(0)
+  scheduledAt    DateTime?
+  status         MatchStatus @default(SCHEDULED)
+  winnerLabel    String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  tournamentId   String
+  tournament     Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+}
+
+model TeamApplication {
+  id            String                 @id @default(cuid())
+  teamName      String
+  teamLogoUrl   String?
+  status        TeamApplicationStatus  @default(PENDING)
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  captainId     String
+  tournamentId  String
+  captain       User                   @relation("TeamCaptain", fields: [captainId], references: [id], onDelete: Cascade)
+  tournament    Tournament             @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  members       TeamApplicationMember[]
+  notifications UserTournamentNotification[]
+
+  @@unique([captainId, tournamentId])
+}
+
+model TeamApplicationMember {
+  id              String          @id @default(cuid())
+  username        String
+  isCaptain       Boolean         @default(false)
+  createdAt       DateTime        @default(now())
+  applicationId   String
+  linkedUserId    String?
+  application     TeamApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  linkedUser      User?           @relation(fields: [linkedUserId], references: [id], onDelete: SetNull)
+
+  @@unique([applicationId, username])
+}
+
+model UserTournamentNotification {
+  id                String          @id @default(cuid())
+  message           String
+  isRead            Boolean         @default(false)
+  createdAt         DateTime        @default(now())
+  userId            String
+  tournamentId      String
+  teamApplicationId String?
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tournament        Tournament      @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  teamApplication   TeamApplication? @relation(fields: [teamApplicationId], references: [id], onDelete: SetNull)
+}
+
+model NewsPost {
+  id         String   @id @default(cuid())
+  title      String
+  body       String
+  isPinned   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  authorId   String
+  author     User     @relation("NewsAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+}
+
+model Banner {
+  id         String   @id @default(cuid())
+  title      String
+  subtitle   String?
+  ctaLabel   String?
+  ctaHref    String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  action     String
+  entity     String
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  actorId    String
+  actor      User     @relation("AuditActor", fields: [actorId], references: [id], onDelete: Cascade)
+}
