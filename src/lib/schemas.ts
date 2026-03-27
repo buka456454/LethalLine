@@ -27,6 +27,7 @@ export const createTournamentSchema = z.object({
   status: z.enum(TournamentStatus).optional(),
   isPublished: z.boolean().optional(),
   maxParticipants: z.number().int().min(2).max(512),
+  entryFeeMinor: z.number().int().min(0).max(10_000_000).optional(),
   startsAt: z.iso.datetime(),
   endsAt: z.iso.datetime().optional(),
   rules: z.string().max(3000).optional(),

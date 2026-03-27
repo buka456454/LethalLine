@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { isOwnerAdminSession, readSession } from "@/lib/auth";
 import { getBrandLogos, pickBrandLogo } from "@/lib/brand";
 import SaiIcon from "@/components/ui/SaiIcon";
+import TwitchLiveBlock from "@/components/home/TwitchLiveBlock";
+import HomeTicker from "@/components/home/HomeTicker";
 
 export const dynamic = "force-dynamic";
 
@@ -83,61 +85,82 @@ export default async function Home() {
   const heroBanner = banners[0];
   const homeLogo = pickBrandLogo(logos, 1);
   const canAdmin = session ? isOwnerAdminSession(session) : false;
+  const twitchChannel = process.env.NEXT_PUBLIC_TWITCH_CHANNEL ?? "lethalline";
   return (
     <div className="w-full space-y-6">
-      <section className="relative overflow-hidden rounded-2xl border border-[#323232] bg-gradient-to-br from-[#212121] via-[#212121] to-[#323232] p-8">
-        <div className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-[#0d7377]/20 blur-2xl animate-orbit-slow" />
-        <div className="pointer-events-none absolute -left-12 -bottom-12 h-32 w-32 rounded-full bg-[#14ffec]/10 blur-2xl animate-orbit-reverse" />
+      <section className="relative left-1/2 right-1/2 -mx-[50vw] w-screen overflow-hidden rounded-3xl bg-[radial-gradient(circle_at_18%_22%,rgba(20,255,236,0.18),transparent_46%),radial-gradient(circle_at_82%_18%,rgba(13,115,119,0.25),transparent_40%),linear-gradient(140deg,#141414_0%,#1b1b1b_40%,#101010_100%)] px-7 py-20 shadow-[0_40px_120px_rgba(0,0,0,0.6)] sm:px-12 sm:py-28 min-h-[720px]">
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,rgba(255,255,255,0.04),transparent_18%,transparent_82%,rgba(255,255,255,0.03))]" />
+        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-[#0d7377]/25 blur-3xl animate-orbit-slow" />
+        <div className="pointer-events-none absolute -left-24 -bottom-24 h-56 w-56 rounded-full bg-[#14ffec]/15 blur-3xl animate-orbit-reverse" />
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#14ffec] to-transparent opacity-60" />
-        <p className="text-xs uppercase tracking-[0.28em] text-zinc-400">Esports Platform</p>
-        <h1 className="mt-3 max-w-3xl text-4xl font-black uppercase leading-tight tracking-[0.08em] text-[#14ffec]">
-          Организация киберспортивных матчей нового поколения
-        </h1>
-        <p className="mt-4 max-w-2xl text-zinc-300">
-          Регистрация игроков, управление турнирами по разным играм и адаптивная сетка матчей.
-        </p>
-        {heroBanner && <p className="mt-4 text-sm text-zinc-300">{heroBanner.title}</p>}
 
-        {homeLogo && (
-          <div className="mt-5 inline-flex items-center gap-3 rounded-lg border border-[#323232] bg-[#212121] px-4 py-2 animate-float-slow">
-            <Image src={homeLogo.src} alt="Главный логотип" width={40} height={40} className="h-10 w-10 object-contain" />
-            <span className="text-xs uppercase tracking-[0.16em] text-zinc-400">Core identity</span>
+        <div className="relative grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+          <div>
+            <p className="text-xs uppercase tracking-[0.32em] text-zinc-400">Esports Platform</p>
+            <h1 className="mt-4 max-w-3xl text-4xl font-black uppercase leading-[1.05] tracking-[0.1em] text-[#14ffec] sm:text-5xl">
+              Организация киберспортивных матчей нового поколения
+            </h1>
+            <p className="mt-5 max-w-2xl text-zinc-300">
+              Регистрация игроков, управление турнирами по разным играм и адаптивная сетка матчей.
+            </p>
+            {heroBanner && <p className="mt-4 text-sm text-zinc-300">{heroBanner.title}</p>}
+
+            <div className="mt-7 flex flex-wrap gap-3">
+              <Link href="/tournaments" className="button-primary">
+                Смотреть турниры
+              </Link>
+              <Link
+                href={canAdmin ? "/admin" : "/sign-in"}
+                className="rounded-lg bg-black/30 px-4 py-3 text-sm font-semibold text-zinc-200 backdrop-blur hover:text-[#14ffec]"
+              >
+                {canAdmin ? "Админ-панель" : "Войти в систему"}
+              </Link>
+            </div>
           </div>
-        )}
 
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Link href="/tournaments" className="button-primary">
-            Смотреть турниры
-          </Link>
-          <Link
-            href={canAdmin ? "/admin" : "/sign-in"}
-            className="rounded-lg border border-[#323232] bg-[#323232] px-4 py-3 text-sm font-semibold text-zinc-200 hover:text-[#14ffec]"
-          >
-            {canAdmin ? "Админ-панель" : "Войти в систему"}
-          </Link>
+          <div className="relative">
+            <div className="absolute -inset-6 rounded-3xl bg-[radial-gradient(circle_at_50%_0%,rgba(20,255,236,0.22),transparent_55%)] blur-2xl opacity-70" />
+            <div className="relative rounded-3xl bg-black/15 p-6 backdrop-blur-sm">
+              <p className="text-[10px] uppercase tracking-[0.22em] text-zinc-400">Core identity</p>
+              {homeLogo && (
+                <div className="mt-3 flex items-center gap-3">
+                  <div className="grid h-14 w-14 place-items-center rounded-2xl bg-black/15">
+                    <Image
+                      src={homeLogo.src}
+                      alt="Главный логотип"
+                      width={44}
+                      height={44}
+                      className="h-11 w-11 object-contain opacity-95"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-zinc-100">Lethal Line</p>
+                    <p className="mt-1 text-xs text-zinc-400">Турниры • Матчи • Live</p>
+                  </div>
+                </div>
+              )}
+              <div className="mt-6 grid grid-cols-3 gap-3">
+                <div className="rounded-2xl bg-white/5 p-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Users</p>
+                  <p className="mt-1 text-lg font-black text-[#14ffec]">{platformStats.users}</p>
+                </div>
+                <div className="rounded-2xl bg-white/5 p-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Tournaments</p>
+                  <p className="mt-1 text-lg font-black text-[#14ffec]">{platformStats.activeTournaments}</p>
+                </div>
+                <div className="rounded-2xl bg-white/5 p-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Matches</p>
+                  <p className="mt-1 text-lg font-black text-[#14ffec]">{platformStats.matches}</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-xl border border-[#323232] bg-[#212121]">
-        <div className="ticker-viewport">
-          <div className="ticker-track ticker-track-a">
-            <span className="ticker-item">LETHAL LINE</span>
-            <span className="ticker-item">LETHAL LINE</span>
-            <span className="ticker-item">LETHAL LINE</span>
-            <span className="ticker-item">LETHAL LINE</span>
-            <span className="ticker-item">LETHAL LINE</span>
-            <span className="ticker-item">LETHAL LINE</span>
-          </div>
-          <div className="ticker-track ticker-track-b" aria-hidden="true">
-            <span className="ticker-item">LETHAL LINE</span>
-            <span className="ticker-item">LETHAL LINE</span>
-            <span className="ticker-item">LETHAL LINE</span>
-            <span className="ticker-item">LETHAL LINE</span>
-            <span className="ticker-item">LETHAL LINE</span>
-            <span className="ticker-item">LETHAL LINE</span>
-          </div>
-        </div>
-      </section>
+      <HomeTicker className="relative left-1/2 right-1/2 -mx-[75vw] w-[150vw] overflow-hidden" />
+
+      <TwitchLiveBlock channel={twitchChannel} />
 
       <section className="grid gap-4 md:grid-cols-6 xl:grid-cols-8">
         <StatCard title="Игроков на платформе" value={platformStats.users} icon="user" className="md:col-span-3 xl:col-span-3" />
@@ -263,21 +286,61 @@ export default async function Home() {
         </article>
       </section>
 
-      <section className="relative overflow-hidden rounded-xl border border-[#323232] bg-[#212121] p-6">
-        <div className="pointer-events-none absolute inset-0 shimmer-mask opacity-40" />
-        <h2 className="text-2xl font-black uppercase tracking-[0.1em] text-[#14ffec]">Готовы запускать свой турнир?</h2>
-        <p className="mt-3 max-w-2xl text-zinc-300">
-          Подключайте дисциплины, публикуйте правила и управляйте матчами через единый админ-центр.
-        </p>
-        <div className="mt-5 flex flex-wrap gap-3">
-          <Link href={canAdmin ? "/admin" : "/sign-in"} className="button-primary">
-            Открыть центр управления
-          </Link>
-          <Link href="/tournaments" className="rounded-lg border border-[#323232] bg-[#323232] px-4 py-3 text-sm font-semibold text-zinc-200 hover:text-[#14ffec]">
-            Перейти к турнирам
-          </Link>
+      <footer className="relative overflow-hidden rounded-2xl border border-[#0d7377]/40 bg-[radial-gradient(circle_at_10%_20%,rgba(20,255,236,0.15),transparent_40%),linear-gradient(140deg,#181818_10%,#202020_45%,#161616_100%)] p-6">
+        <div className="pointer-events-none absolute -left-16 top-4 h-36 w-36 rounded-full bg-[#14ffec]/10 blur-2xl" />
+        <div className="pointer-events-none absolute -right-16 bottom-0 h-40 w-40 rounded-full bg-[#0d7377]/20 blur-2xl" />
+
+        <div className="relative flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-zinc-400">
+              <SaiIcon name="chat" size={14} />
+              Contact hub
+            </p>
+            <h2 className="mt-2 text-2xl font-black uppercase tracking-[0.1em] text-[#14ffec]">Связь</h2>
+            <p className="mt-2 text-sm text-zinc-300">Выбирай удобный канал. Twitch подключим отдельно, как будет ссылка.</p>
+          </div>
+          <div className="rounded-full border border-[#14ffec]/30 bg-black/30 px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-zinc-300">
+            Lethal Line Network
+          </div>
         </div>
-      </section>
+
+        <div className="relative mt-6 grid gap-3 md:grid-cols-12">
+          <a
+            href="https://t.me/LethalLine"
+            target="_blank"
+            rel="noreferrer"
+            className="group md:col-span-5 rounded-2xl border border-[#0d7377]/60 bg-[#121212]/80 p-4 transition hover:-translate-y-0.5 hover:border-[#14ffec]"
+          >
+            <p className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-zinc-400">
+              <SaiIcon name="chat" />
+              Telegram
+            </p>
+            <p className="mt-2 text-lg font-bold text-zinc-100 group-hover:text-[#14ffec]">t.me/LethalLine</p>
+            <p className="mt-1 text-xs text-zinc-400">Быстрый ответ по турнирам и новостям.</p>
+          </a>
+
+          <a
+            href="mailto:vladislausbelorukov@yandex.ru"
+            className="group md:col-span-5 rounded-2xl border border-[#323232] bg-[#181818]/85 p-4 transition hover:-translate-y-0.5 hover:border-[#14ffec]"
+          >
+            <p className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-zinc-400">
+              <SaiIcon name="inbox" />
+              Email
+            </p>
+            <p className="mt-2 break-all text-lg font-bold text-zinc-100 group-hover:text-[#14ffec]">vladislausbelorukov@yandex.ru</p>
+            <p className="mt-1 text-xs text-zinc-400">Для предложений и партнёрств.</p>
+          </a>
+
+          <div className="md:col-span-2 rounded-2xl border border-dashed border-[#323232] bg-[#141414]/80 p-4 opacity-85">
+            <p className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-zinc-500">
+              <SaiIcon name="video" />
+              Twitch
+            </p>
+            <p className="mt-2 text-sm font-semibold text-zinc-300">Скоро</p>
+            <p className="mt-1 text-xs text-zinc-500">Ждём ссылку канала</p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

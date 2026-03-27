@@ -14,9 +14,10 @@ type TeamApplicationItem = {
   id: string;
   teamName: string;
   status: "PENDING" | "APPROVED" | "REJECTED";
+  paymentStatus?: "UNPAID" | "PENDING" | "PAID" | "REFUND_PENDING" | "REFUNDED" | "REFUND_FAILED";
   createdAt: string;
   captain: { id: string; username: string };
-  tournament: { id: string; title: string };
+  tournament: { id: string; title: string; entryFeeMinor?: number; currency?: "RUB" };
   members: Array<{ id: string; username: string; isCaptain: boolean; linkedUserId: string | null }>;
 };
 
@@ -175,8 +176,20 @@ export default function ApplicationsModerationPanel() {
                 <p className="mt-1 text-xs text-zinc-400">
                   Статус: {item.status} | {new Date(item.createdAt).toLocaleString("ru-RU")}
                 </p>
+                {(item.tournament.entryFeeMinor ?? 0) > 0 && (
+                  <p className="mt-1 text-xs text-zinc-400">
+                    Взнос: {((item.tournament.entryFeeMinor ?? 0) / 100).toFixed(2)} {item.tournament.currency ?? "RUB"} | Оплата:{" "}
+                    <span className="text-zinc-200">{item.paymentStatus ?? "UNPAID"}</span>
+                  </p>
+                )}
                 <div className="mt-2 flex gap-2">
-                  <button type="button" className="button-primary" onClick={() => void updateTeamApplication(item.id, "APPROVED")}>
+                  <button
+                    type="button"
+                    className="button-primary"
+                    onClick={() => void updateTeamApplication(item.id, "APPROVED")}
+                    disabled={(item.tournament.entryFeeMinor ?? 0) > 0 && (item.paymentStatus ?? "UNPAID") !== "PAID"}
+                    title={(item.tournament.entryFeeMinor ?? 0) > 0 && (item.paymentStatus ?? "UNPAID") !== "PAID" ? "Нужна оплата (PAID)" : undefined}
+                  >
                     Принять
                   </button>
                   <button

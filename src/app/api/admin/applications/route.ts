@@ -25,7 +25,7 @@ export async function GET() {
             select: { id: true, username: true },
           },
           tournament: {
-            select: { id: true, title: true },
+            select: { id: true, title: true, entryFeeMinor: true, currency: true },
           },
           members: {
             select: { id: true, username: true, linkedUserId: true, isCaptain: true },

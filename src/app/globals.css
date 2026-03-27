@@ -85,14 +85,8 @@ body {
   display: flex;
   flex-shrink: 0;
   min-width: max-content;
-}
-
-.ticker-track-a {
-  animation: tickerShiftA 18s linear infinite;
-}
-
-.ticker-track-b {
-  animation: tickerShiftB 18s linear infinite;
+  will-change: transform;
+  animation: tickerShift 18s linear infinite;
 }
 
 .ticker-item {
@@ -123,21 +117,12 @@ body {
 }
 
 
-@keyframes tickerShiftA {
+@keyframes tickerShift {
   0% {
     transform: translateX(0);
   }
   100% {
-    transform: translateX(-100%);
-  }
-}
-
-@keyframes tickerShiftB {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(-100%);
+    transform: translateX(-50%);
   }
 }
 

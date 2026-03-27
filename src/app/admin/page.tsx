@@ -28,6 +28,18 @@ export default async function AdminPage() {
         <Link href="/admin/applications" className="button-primary">
           Центр модерации заявок
         </Link>
+        <Link
+          href="/admin/tournaments/new"
+          className="rounded-lg border border-[#323232] bg-[#323232] px-4 py-3 text-sm font-semibold text-zinc-200 hover:text-[#14ffec]"
+        >
+          Создать турнир
+        </Link>
+        <Link
+          href="/admin/matches/new"
+          className="rounded-lg border border-[#323232] bg-[#323232] px-4 py-3 text-sm font-semibold text-zinc-200 hover:text-[#14ffec]"
+        >
+          Создать матч
+        </Link>
       </div>
       <AdminPanel />
     </div>

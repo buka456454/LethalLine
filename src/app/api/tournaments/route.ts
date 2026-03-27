@@ -31,6 +31,7 @@ export async function POST(request: Request) {
         description: parsed.data.description,
         format: parsed.data.format,
         maxParticipants: parsed.data.maxParticipants,
+        entryFeeMinor: parsed.data.entryFeeMinor ?? 0,
         gameId: parsed.data.gameId,
         rules: parsed.data.rules,
         startsAt: new Date(parsed.data.startsAt),

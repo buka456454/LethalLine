@@ -13,12 +13,15 @@ type TournamentApplyDetails = {
   game: { name: string };
   status: string;
   maxParticipants: number;
+  entryFeeMinor: number;
+  currency: "RUB";
   registrations: Array<{ id: string; status: RegistrationStatus; userId: string }>;
   teamApplications: Array<{
     id: string;
     teamName: string;
     teamLogoUrl: string | null;
     status: "PENDING" | "APPROVED" | "REJECTED";
+    paymentStatus: "UNPAID" | "PENDING" | "PAID" | "REFUND_PENDING" | "REFUNDED" | "REFUND_FAILED";
     captainId: string;
     members: Array<{ id: string; username: string; isCaptain: boolean }>;
   }>;
@@ -68,7 +71,12 @@ export default async function TournamentApplyPage({ params }: { params: Promise<
         {myRegistration && <p className="mt-3 text-sm text-[#14ffec]">Ваша индивидуальная заявка: {myRegistration.status}</p>}
       </section>
 
-      <TournamentApplicationManager tournamentId={tournament.id} existingTeamApplication={myTeamApplication} />
+      <TournamentApplicationManager
+        tournamentId={tournament.id}
+        entryFeeMinor={tournament.entryFeeMinor}
+        currency={tournament.currency}
+        existingTeamApplication={myTeamApplication}
+      />
     </div>
   );
 }

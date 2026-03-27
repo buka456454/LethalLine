@@ -22,9 +22,15 @@ type LoginNotification = {
   teamApplication: { id: string; teamName: string } | null;
 };
 
-export default function AuthPanel({ logoSrc }: { logoSrc?: string | null }) {
+export default function AuthPanel({
+  logoSrc,
+  initialMode = "login",
+}: {
+  logoSrc?: string | null;
+  initialMode?: "login" | "register";
+}) {
   const router = useRouter();
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const mode = initialMode;
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -34,7 +40,6 @@ export default function AuthPanel({ logoSrc }: { logoSrc?: string | null }) {
   const {
     register,
     handleSubmit,
-    reset,
     getValues,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
@@ -42,17 +47,6 @@ export default function AuthPanel({ logoSrc }: { logoSrc?: string | null }) {
     shouldUnregister: true,
     defaultValues: { email: "", username: undefined, password: "" },
   });
-
-  const switchMode = (nextMode: "login" | "register") => {
-    setMode(nextMode);
-    reset({ email: "", username: undefined, password: "" });
-    setError("");
-    setMessage("");
-    setEmailHint("");
-    setShowPassword(false);
-    setShowReset(false);
-    setResetPassword("");
-  };
 
   const checkEmail = async () => {
     if (mode !== "register") return;
@@ -88,12 +82,20 @@ export default function AuthPanel({ logoSrc }: { logoSrc?: string | null }) {
           };
 
     if (mode === "register") {
+      const normalizedUsername = data.username?.trim();
+      if (!normalizedUsername || normalizedUsername.length < 3 || normalizedUsername.length > 24) {
+        setError("Укажите ник от 3 до 24 символов");
+        return;
+      }
+
       const emailCheck = await fetch(`/api/auth/check-email?email=${encodeURIComponent(payload.email)}`);
       const emailBody = (await emailCheck.json()) as { available?: boolean };
       if (!emailCheck.ok || !emailBody.available) {
         setError("Этот email уже занят или невалиден");
         return;
       }
+
+      payload.username = normalizedUsername;
     }
 
     const response = await fetch(endpoint, {
@@ -146,9 +148,7 @@ export default function AuthPanel({ logoSrc }: { logoSrc?: string | null }) {
 
   return (
     <motion.section
-      initial={{ opacity: 0, y: 24 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35 }}
+      initial={false}
       className="mx-auto w-full max-w-md rounded-2xl border border-[#323232] bg-[#212121] p-6 shadow-[0_0_0_1px_#323232,0_20px_60px_rgba(0,0,0,0.45)]"
     >
       {logoSrc && (
@@ -160,20 +160,20 @@ export default function AuthPanel({ logoSrc }: { logoSrc?: string | null }) {
       <p className="mt-2 text-sm text-zinc-300">Регистрация, вход и безопасный доступ к турнирам.</p>
 
       <div className="mt-5 grid grid-cols-2 overflow-hidden rounded-lg border border-[#323232]">
-        <button
-          type="button"
-          onClick={() => switchMode("login")}
-          className={`px-3 py-2 text-sm font-semibold ${mode === "login" ? "bg-[#0d7377] text-black" : "bg-[#323232] text-zinc-300"}`}
+        <a
+          href="/sign-in"
+          className={`block px-3 py-2 text-center text-sm font-semibold ${mode === "login" ? "bg-[#0d7377] text-black" : "bg-[#323232] text-zinc-300"}`}
+          aria-current={mode === "login" ? "page" : undefined}
         >
           Вход
-        </button>
-        <button
-          type="button"
-          onClick={() => switchMode("register")}
-          className={`px-3 py-2 text-sm font-semibold ${mode === "register" ? "bg-[#0d7377] text-black" : "bg-[#323232] text-zinc-300"}`}
+        </a>
+        <a
+          href="/sign-in?mode=register"
+          className={`block px-3 py-2 text-center text-sm font-semibold ${mode === "register" ? "bg-[#0d7377] text-black" : "bg-[#323232] text-zinc-300"}`}
+          aria-current={mode === "register" ? "page" : undefined}
         >
           Регистрация
-        </button>
+        </a>
       </div>
 
       <form className="mt-6 space-y-3" onSubmit={handleSubmit(onSubmit)}>

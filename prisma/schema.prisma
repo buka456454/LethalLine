@@ -49,6 +49,23 @@ enum TeamApplicationStatus {
   REJECTED
 }
 
+enum CurrencyCode {
+  RUB
+}
+
+enum PaymentProvider {
+  TBANK
+}
+
+enum PaymentStatus {
+  UNPAID
+  PENDING
+  PAID
+  REFUND_PENDING
+  REFUNDED
+  REFUND_FAILED
+}
+
 model User {
   id                   String                    @id @default(cuid())
   email                String                    @unique
@@ -89,6 +106,8 @@ model Tournament {
   format          TournamentFormat
   status          TournamentStatus           @default(DRAFT)
   maxParticipants Int
+  entryFeeMinor   Int                        @default(0)
+  currency        CurrencyCode               @default(RUB)
   startsAt        DateTime
   endsAt          DateTime?
   rules           String?
@@ -139,6 +158,14 @@ model TeamApplication {
   teamName      String
   teamLogoUrl   String?
   status        TeamApplicationStatus  @default(PENDING)
+  paymentStatus PaymentStatus          @default(UNPAID)
+  paymentProvider PaymentProvider?
+  paymentId     String?
+  paymentOrderId String?
+  paidAt        DateTime?
+  refundId      String?
+  refundedAt    DateTime?
+  refundReason  String?
   createdAt     DateTime               @default(now())
   updatedAt     DateTime               @updatedAt
   captainId     String
@@ -149,6 +176,8 @@ model TeamApplication {
   notifications UserTournamentNotification[]
 
   @@unique([captainId, tournamentId])
+  @@unique([paymentId])
+  @@unique([paymentOrderId])
 }
 
 model TeamApplicationMember {

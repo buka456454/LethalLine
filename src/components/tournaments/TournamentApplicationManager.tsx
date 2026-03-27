@@ -9,14 +9,19 @@ type TeamApplicationPreview = {
   teamName: string;
   teamLogoUrl: string | null;
   status: "PENDING" | "APPROVED" | "REJECTED";
+  paymentStatus?: "UNPAID" | "PENDING" | "PAID" | "REFUND_PENDING" | "REFUNDED" | "REFUND_FAILED";
   members: Array<{ id: string; username: string; isCaptain: boolean }>;
 };
 
 export default function TournamentApplicationManager({
   tournamentId,
+  entryFeeMinor,
+  currency,
   existingTeamApplication,
 }: {
   tournamentId: string;
+  entryFeeMinor: number;
+  currency: "RUB";
   existingTeamApplication: TeamApplicationPreview | null;
 }) {
   const router = useRouter();
@@ -27,6 +32,10 @@ export default function TournamentApplicationManager({
   const [logoUrl, setLogoUrl] = useState(existingTeamApplication?.teamLogoUrl ?? "");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [agreeOffer, setAgreeOffer] = useState(false);
+
+  const isPaidTournament = entryFeeMinor > 0;
+  const paymentStatus = existingTeamApplication?.paymentStatus ?? "UNPAID";
 
   const parsedMembers = memberUsernames
     .split(",")
@@ -93,6 +102,32 @@ export default function TournamentApplicationManager({
     router.refresh();
   };
 
+  const initPayment = async () => {
+    if (!existingTeamApplication) {
+      setMessage("Сначала отправьте заявку команды, затем оплатите участие.");
+      return;
+    }
+    if (!agreeOffer) {
+      setMessage("Нужно согласиться с офертой перед оплатой.");
+      return;
+    }
+    setLoading(true);
+    setMessage("");
+    const response = await fetch(`/api/tournaments/${tournamentId}/team-apply/payment`, { method: "POST" });
+    const body = (await response.json()) as { paymentUrl?: string | null; error?: string };
+    if (!response.ok) {
+      setMessage(body.error ?? "Не удалось создать платеж");
+      setLoading(false);
+      return;
+    }
+    if (body.paymentUrl) {
+      window.location.href = body.paymentUrl;
+      return;
+    }
+    setLoading(false);
+    router.refresh();
+  };
+
   return (
     <div className="mt-4 space-y-4">
       <div className="rounded border border-[#323232] bg-[#323232] p-4">
@@ -108,6 +143,14 @@ export default function TournamentApplicationManager({
         <p className="mt-1 text-xs text-zinc-300">
           Укажите название, логотип и ники игроков. Если ник зарегистрирован, игрок увидит уведомление при входе.
         </p>
+        {isPaidTournament && (
+          <p className="mt-2 text-xs text-zinc-200">
+            Взнос за участие:{" "}
+            <span className="font-semibold text-[#14ffec]">
+              {(entryFeeMinor / 100).toFixed(2)} {currency}
+            </span>
+          </p>
+        )}
 
         <div className="mt-3 space-y-3">
           <input
@@ -156,9 +199,40 @@ export default function TournamentApplicationManager({
               Текущий статус вашей командной заявки: <span className="text-[#14ffec]">{existingTeamApplication.status}</span>
             </p>
           )}
+          {isPaidTournament && existingTeamApplication && (
+            <p className="text-xs text-zinc-300">
+              Статус оплаты: <span className="text-[#14ffec]">{paymentStatus}</span>
+            </p>
+          )}
           <button type="button" onClick={submitTeamApplication} disabled={loading} className="button-primary">
             {loading ? "Отправка..." : "Отправить заявку команды"}
           </button>
+          {isPaidTournament && paymentStatus !== "PAID" && (
+            <div className="rounded border border-[#323232] bg-[#212121] p-3">
+              <p className="text-xs text-zinc-300">
+                После отправки заявки оплатите участие. Оплата подтверждается автоматически (webhook).
+              </p>
+              <label className="mt-2 flex items-start gap-2 text-xs text-zinc-300">
+                <input
+                  type="checkbox"
+                  checked={agreeOffer}
+                  onChange={(e) => setAgreeOffer(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  Я согласен(на) с <a className="text-[#14ffec] underline" href="/offer">публичной офертой</a>.
+                </span>
+              </label>
+              <button
+                type="button"
+                onClick={initPayment}
+                disabled={loading}
+                className="button-primary mt-3 w-full"
+              >
+                {loading ? "Подготовка оплаты..." : "Оплатить участие"}
+              </button>
+            </div>
+          )}
           {message && <p className="text-sm text-[#14ffec]">{message}</p>}
         </div>
       </div>
