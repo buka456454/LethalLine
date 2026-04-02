@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import PublicImage from "@/components/ui/PublicImage";
 
 type RegistrationItem = {
   id: string;
@@ -21,17 +22,30 @@ type TeamApplicationItem = {
   members: Array<{ id: string; username: string; isCaptain: boolean; linkedUserId: string | null }>;
 };
 
+type ExperienceVerificationItem = {
+  id: string;
+  experienceVerificationStatus: "NOT_SUBMITTED" | "PENDING" | "APPROVED" | "REJECTED";
+  experienceProofImageUrl: string | null;
+  experienceProofSubmittedAt: string | null;
+  experienceVerificationReviewedAt: string | null;
+  experienceVerificationNote: string | null;
+  user: { id: string; username: string };
+  game: { id: string; name: string; slug: string };
+};
+
 type ApplicationsPayload = {
   registrations: RegistrationItem[];
   teamApplications: TeamApplicationItem[];
+  experienceVerifications: ExperienceVerificationItem[];
 };
 
 export default function ApplicationsModerationPanel() {
-  const [data, setData] = useState<ApplicationsPayload>({ registrations: [], teamApplications: [] });
+  const [data, setData] = useState<ApplicationsPayload>({ registrations: [], teamApplications: [], experienceVerifications: [] });
   const [query, setQuery] = useState("");
   const [onlyPending, setOnlyPending] = useState(true);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [rejectInstructions, setRejectInstructions] = useState<Record<string, string>>({});
 
   const load = async () => {
     setLoading(true);
@@ -45,6 +59,7 @@ export default function ApplicationsModerationPanel() {
     setData({
       registrations: body.registrations ?? [],
       teamApplications: body.teamApplications ?? [],
+      experienceVerifications: body.experienceVerifications ?? [],
     });
     setLoading(false);
   };
@@ -78,6 +93,15 @@ export default function ApplicationsModerationPanel() {
     });
   }, [data.teamApplications, onlyPending, query]);
 
+  const filteredExperienceVerifications = useMemo(() => {
+    return data.experienceVerifications.filter((item) => {
+      if (onlyPending && item.experienceVerificationStatus !== "PENDING") return false;
+      if (!query.trim()) return true;
+      const q = query.toLowerCase();
+      return item.user.username.toLowerCase().includes(q) || item.game.name.toLowerCase().includes(q);
+    });
+  }, [data.experienceVerifications, onlyPending, query]);
+
   const updateRegistration = async (registrationId: string, status: "APPROVED" | "REJECTED") => {
     const response = await fetch(`/api/admin/registrations/${registrationId}`, {
       method: "PATCH",
@@ -108,6 +132,30 @@ export default function ApplicationsModerationPanel() {
     await load();
   };
 
+  const updateExperienceVerification = async (profileId: string, status: "APPROVED" | "REJECTED") => {
+    const note = rejectInstructions[profileId]?.trim() ?? "";
+    if (status === "REJECTED" && !note) {
+      setMessage("Для отклонения заявки на подтверждение опыта заполните инструкцию для игрока.");
+      return;
+    }
+
+    const response = await fetch(`/api/admin/experience-verifications/${profileId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        status,
+        ...(status === "REJECTED" ? { note } : {}),
+      }),
+    });
+    const body = (await response.json()) as { error?: string };
+    if (!response.ok) {
+      setMessage(body.error ?? "Не удалось обновить заявку на подтверждение опыта");
+      return;
+    }
+    setMessage(`Подтверждение опыта ${status === "APPROVED" ? "одобрено" : "отклонено"}`);
+    await load();
+  };
+
   return (
     <div className="w-full space-y-5">
       <div className="rounded-xl border border-[#323232] bg-[#212121] p-4">
@@ -133,7 +181,7 @@ export default function ApplicationsModerationPanel() {
         {message && <p className="mt-3 text-sm text-[#14ffec]">{message}</p>}
       </div>
 
-      <section className="grid gap-4 lg:grid-cols-2">
+      <section className="grid gap-4 lg:grid-cols-3">
         <article className="surface rounded-xl p-4">
           <h2 className="text-lg font-bold text-zinc-100">Индивидуальные заявки</h2>
           <div className="mt-3 space-y-2">
@@ -196,6 +244,62 @@ export default function ApplicationsModerationPanel() {
                     type="button"
                     className="rounded-lg border border-[#323232] bg-[#212121] px-4 py-2 text-sm text-zinc-200 hover:text-[#14ffec]"
                     onClick={() => void updateTeamApplication(item.id, "REJECTED")}
+                  >
+                    Отклонить
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="surface rounded-xl p-4">
+          <h2 className="text-lg font-bold text-zinc-100">Подтверждение опыта</h2>
+          <div className="mt-3 space-y-2">
+            {filteredExperienceVerifications.length === 0 && <p className="text-sm text-zinc-400">Заявок не найдено.</p>}
+            {filteredExperienceVerifications.map((item) => (
+              <div key={item.id} className="rounded border border-[#323232] bg-[#323232] p-3">
+                <p className="text-sm text-zinc-100">
+                  <span className="font-semibold">{item.user.username}</span> | {item.game.name}
+                </p>
+                <p className="mt-1 text-xs text-zinc-400">
+                  Статус: {item.experienceVerificationStatus} |{" "}
+                  {item.experienceProofSubmittedAt ? new Date(item.experienceProofSubmittedAt).toLocaleString("ru-RU") : "дата неизвестна"}
+                </p>
+                {item.experienceProofImageUrl ? (
+                  <a href={item.experienceProofImageUrl} target="_blank" rel="noreferrer" className="mt-2 block">
+                    <PublicImage
+                      src={item.experienceProofImageUrl}
+                      alt={`Proof ${item.user.username} / ${item.game.name}`}
+                      width={520}
+                      height={220}
+                      className="h-36 w-full rounded border border-[#454545] object-cover"
+                    />
+                  </a>
+                ) : (
+                  <p className="mt-2 text-xs text-zinc-400">Скриншот не найден.</p>
+                )}
+                {item.experienceVerificationNote ? (
+                  <p className="mt-2 text-xs text-zinc-300">Текущая инструкция: {item.experienceVerificationNote}</p>
+                ) : null}
+                <textarea
+                  className="input-base mt-2 min-h-16"
+                  placeholder="Инструкция игроку при отклонении (обязательно)"
+                  value={rejectInstructions[item.id] ?? ""}
+                  onChange={(event) => setRejectInstructions((prev) => ({ ...prev, [item.id]: event.target.value }))}
+                />
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    className="button-primary"
+                    onClick={() => void updateExperienceVerification(item.id, "APPROVED")}
+                  >
+                    Принять
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-lg border border-[#323232] bg-[#212121] px-4 py-2 text-sm text-zinc-200 hover:text-[#14ffec]"
+                    onClick={() => void updateExperienceVerification(item.id, "REJECTED")}
                   >
                     Отклонить
                   </button>

@@ -1,11 +1,13 @@
 import { fail, ok } from "@/lib/api";
 import { writeAuditLog } from "@/lib/audit";
+import { ensureCoreGames } from "@/lib/coreGames";
 import { requireOwnerAdmin } from "@/lib/guards";
 import { prisma } from "@/lib/prisma";
 import { createGameSchema } from "@/lib/schemas";
 import { Prisma } from "@prisma/client";
 
 export async function GET() {
+  await ensureCoreGames();
   const games = await prisma.game.findMany({
     include: { tournaments: true },
     orderBy: { name: "asc" },

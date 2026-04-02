@@ -5,6 +5,7 @@ import { createTournamentSchema } from "@/lib/schemas";
 import { TournamentStatus } from "@prisma/client";
 import { writeAuditLog } from "@/lib/audit";
 import { generateDoubleEliminationMatches, generateSingleEliminationMatches } from "@/lib/bracket";
+import { calculateMaxParticipants, isAllowedTeamSize } from "@/lib/tournament";
 
 export async function GET() {
   const tournaments = await prisma.tournament.findMany({
@@ -23,6 +24,8 @@ export async function POST(request: Request) {
     const body = await request.json();
     const parsed = createTournamentSchema.safeParse(body);
     if (!parsed.success) return fail("Invalid tournament payload", 422);
+    if (!isAllowedTeamSize(parsed.data.teamSize)) return fail("Invalid team size", 422);
+    const maxParticipants = calculateMaxParticipants(parsed.data.maxTeams, parsed.data.teamSize);
 
     const tournament = await prisma.tournament.create({
       data: {
@@ -30,10 +33,16 @@ export async function POST(request: Request) {
         slug: parsed.data.slug,
         description: parsed.data.description,
         format: parsed.data.format,
-        maxParticipants: parsed.data.maxParticipants,
+        teamSize: parsed.data.teamSize,
+        maxTeams: parsed.data.maxTeams,
+        maxParticipants,
         entryFeeMinor: parsed.data.entryFeeMinor ?? 0,
+        eventDate: parsed.data.eventDate ? new Date(parsed.data.eventDate) : null,
+        prizeMode: parsed.data.prizeMode ?? "ENTRY_FEES",
+        sponsorPrizeText: parsed.data.sponsorPrizeText ?? null,
         gameId: parsed.data.gameId,
         rules: parsed.data.rules,
+        requiresVerifiedExperience: parsed.data.requiresVerifiedExperience ?? false,
         startsAt: new Date(parsed.data.startsAt),
         endsAt: parsed.data.endsAt ? new Date(parsed.data.endsAt) : null,
         status: parsed.data.status ?? TournamentStatus.REGISTRATION_OPEN,
@@ -43,9 +52,9 @@ export async function POST(request: Request) {
 
     const seedMatches =
       parsed.data.format === "DOUBLE_ELIMINATION"
-        ? generateDoubleEliminationMatches(parsed.data.maxParticipants)
+        ? generateDoubleEliminationMatches(maxParticipants)
         : parsed.data.format === "SINGLE_ELIMINATION"
-          ? generateSingleEliminationMatches(parsed.data.maxParticipants)
+          ? generateSingleEliminationMatches(maxParticipants)
           : [];
 
     if (seedMatches.length > 0) {

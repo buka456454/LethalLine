@@ -1,6 +1,7 @@
 import { PrismaClient, RegistrationStatus, Role, TournamentFormat, TournamentStatus } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { generateSingleEliminationMatches } from "../src/lib/bracket";
+import { ensureCoreGames } from "../src/lib/coreGames";
 
 const prisma = new PrismaClient();
 
@@ -9,28 +10,26 @@ async function main() {
 
   const superadmin = await prisma.user.upsert({
     where: { email: "superadmin@lethalline.gg" },
-    update: {},
+    update: {
+      phone: "+79990000000",
+      phoneVerifiedAt: new Date(),
+    },
     create: {
       email: "superadmin@lethalline.gg",
       username: "superadmin",
+      phone: "+79990000000",
+      phoneVerifiedAt: new Date(),
       passwordHash: adminPassword,
       role: Role.SUPERADMIN,
     },
   });
 
-  const game = await prisma.game.upsert({
-    where: { slug: "counter-strike-2" },
-    update: {},
-    create: {
-      name: "Counter-Strike 2",
-      slug: "counter-strike-2",
-      description: "Main tactical discipline",
-    },
-  });
+  await ensureCoreGames();
+  const cs2Game = await prisma.game.findUniqueOrThrow({ where: { slug: "cs2" } });
 
   const tournament = await prisma.tournament.upsert({
     where: { slug: "spring-clash-2026" },
-    update: {},
+    update: { gameId: cs2Game.id },
     create: {
       title: "Spring Clash 2026",
       slug: "spring-clash-2026",
@@ -39,7 +38,7 @@ async function main() {
       status: TournamentStatus.REGISTRATION_OPEN,
       maxParticipants: 16,
       startsAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-      gameId: game.id,
+      gameId: cs2Game.id,
       isPublished: true,
     },
   });

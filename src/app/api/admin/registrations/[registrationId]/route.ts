@@ -3,6 +3,7 @@ import { fail, ok } from "@/lib/api";
 import { writeAuditLog } from "@/lib/audit";
 import { requireOwnerAdmin } from "@/lib/guards";
 import { prisma } from "@/lib/prisma";
+import { reseedTournamentBracket } from "@/lib/bracket-seeding";
 import { z } from "zod";
 
 const payloadSchema = z.object({
@@ -35,6 +36,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ regis
             : `Ваша заявка на турнир ${registration.tournament.title} отклонена.`,
       },
     });
+
+    if (parsed.data.status === RegistrationStatus.APPROVED) {
+      await reseedTournamentBracket(registration.tournament.id);
+    }
 
     await writeAuditLog({
       actorId: session.sub,

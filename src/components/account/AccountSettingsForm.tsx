@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { useMemo, useState } from "react";
+import PublicImage from "@/components/ui/PublicImage";
 import { useRouter } from "next/navigation";
 
 type AccountUser = {
@@ -11,14 +11,24 @@ type AccountUser = {
   displayName: string | null;
   avatarUrl: string | null;
   bio: string | null;
-  role: "USER" | "ADMIN" | "SUPERADMIN";
+  role: "USER" | "ADMIN" | "SUPERADMIN" | "JOURNALIST" | "COMMENTATOR";
   createdAt: string;
+  phone: string | null;
+  phoneVerified?: boolean;
 };
 
-export default function AccountSettingsForm({ initialUser }: { initialUser: AccountUser }) {
+export default function AccountSettingsForm({
+  initialUser,
+  backToProfileHref,
+}: {
+  initialUser: AccountUser;
+  /** Ссылка «к публичному профилю» внутри карточки настроек */
+  backToProfileHref?: string;
+}) {
   const router = useRouter();
   const [form, setForm] = useState({
     email: initialUser.email,
+    phone: initialUser.phone ?? "",
     username: initialUser.username,
     displayName: initialUser.displayName ?? "",
     avatarUrl: initialUser.avatarUrl ?? "",
@@ -29,6 +39,7 @@ export default function AccountSettingsForm({ initialUser }: { initialUser: Acco
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const avatarPreview = useMemo(() => {
     if (form.avatarUrl) return form.avatarUrl;
@@ -50,7 +61,10 @@ export default function AccountSettingsForm({ initialUser }: { initialUser: Acco
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     });
-    const body = (await response.json()) as { error?: string };
+    const body = (await response.json()) as {
+      error?: string;
+      user?: { username: string };
+    };
 
     if (!response.ok) {
       setError(body.error ?? "Не удалось сохранить настройки");
@@ -61,23 +75,84 @@ export default function AccountSettingsForm({ initialUser }: { initialUser: Acco
     setMessage("Профиль обновлен");
     setForm((prev) => ({ ...prev, currentPassword: "", newPassword: "" }));
     setSaving(false);
+    if (body.user?.username && body.user.username !== initialUser.username) {
+      router.replace(`/u/${encodeURIComponent(body.user.username)}`);
+    }
     router.refresh();
   };
 
+  const persistProfile = async (next: typeof form) => {
+    const response = await fetch("/api/account", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(next),
+    });
+    const body = (await response.json()) as { error?: string };
+    if (!response.ok) return body.error ?? "Не удалось сохранить настройки";
+    return null;
+  };
+
+  const onAvatarFile = async (file: File | undefined) => {
+    if (!file) return;
+    setUploadingAvatar(true);
+    setError("");
+    setMessage("");
+    const fd = new FormData();
+    fd.set("avatar", file);
+    const up = await fetch("/api/uploads/avatar", { method: "POST", body: fd });
+    const upBody = (await up.json()) as { avatarUrl?: string; error?: string };
+    if (!up.ok) {
+      setError(upBody.error ?? "Не удалось загрузить аватар");
+      setUploadingAvatar(false);
+      return;
+    }
+    const url = upBody.avatarUrl ?? "";
+    const merged = { ...form, avatarUrl: url };
+    setForm(merged);
+    const err = await persistProfile(merged);
+    if (err) {
+      setError(err);
+      setUploadingAvatar(false);
+      return;
+    }
+    setMessage("Аватар обновлён");
+    setUploadingAvatar(false);
+    router.refresh();
+  };
+
+  const HeadingTag = backToProfileHref ? "h2" : "h1";
+
   return (
     <section className="surface w-full rounded-xl p-6">
-      <h1 className="text-2xl font-black uppercase tracking-[0.12em] text-[#14ffec]">Настройки аккаунта</h1>
-      <p className="mt-2 text-sm text-zinc-400">Редактируйте профиль, контактные данные и параметры входа.</p>
+      <HeadingTag className="text-2xl font-black uppercase tracking-[0.12em] text-[#14ffec]">
+        {backToProfileHref ? "Пароль, email, телефон и ник" : "Настройки аккаунта"}
+      </HeadingTag>
+      <p className="mt-2 text-sm text-zinc-400">
+        {backToProfileHref
+          ? "Эти данные не видны другим так же открыто, как страница профиля: email, телефон и смена пароля только здесь."
+          : "Редактируйте профиль, контактные данные и параметры входа."}
+      </p>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[220px_1fr]">
         <aside className="space-y-3">
           <div className="flex h-36 w-36 items-center justify-center overflow-hidden rounded-xl border border-[#323232] bg-[#323232]">
             {avatarPreview ? (
-              <Image src={avatarPreview} alt="Avatar preview" width={144} height={144} className="h-full w-full object-cover" />
+              <PublicImage src={avatarPreview} alt="Avatar preview" width={144} height={144} className="h-full w-full object-cover" />
             ) : (
               <span className="text-3xl font-black text-[#14ffec]">{initials}</span>
             )}
           </div>
+          <label className="block">
+            <span className="mb-1 block text-xs uppercase tracking-wider text-zinc-400">Загрузить файл</span>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="block w-full max-w-[12rem] text-xs text-zinc-400 file:mr-2 file:rounded file:border-0 file:bg-[#323232] file:px-2 file:py-1 file:text-zinc-200"
+              disabled={uploadingAvatar || saving}
+              onChange={(e) => void onAvatarFile(e.target.files?.[0])}
+            />
+            {uploadingAvatar && <p className="mt-1 text-xs text-zinc-500">Загрузка…</p>}
+          </label>
           <p className="text-xs text-zinc-500">Роль: {initialUser.role}</p>
           <p className="text-xs text-zinc-500">С нами с {new Date(initialUser.createdAt).toLocaleDateString()}</p>
         </aside>
@@ -89,7 +164,7 @@ export default function AccountSettingsForm({ initialUser }: { initialUser: Acco
               className="input-base"
               value={form.displayName}
               onChange={(event) => setForm((prev) => ({ ...prev, displayName: event.target.value }))}
-              placeholder="Vlad Cyber"
+              placeholder="Например: Игрок"
             />
           </label>
 
@@ -110,6 +185,16 @@ export default function AccountSettingsForm({ initialUser }: { initialUser: Acco
               value={form.email}
               onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
               placeholder="you@team.gg"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1 block text-xs uppercase tracking-wider text-zinc-400">Телефон</span>
+            <input
+              className="input-base"
+              value={form.phone}
+              onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))}
+              placeholder="+7 900 123-45-67"
             />
           </label>
 

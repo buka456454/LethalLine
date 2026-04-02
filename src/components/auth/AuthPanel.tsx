@@ -2,7 +2,8 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { motion } from "framer-motion";
-import Image from "next/image";
+import { signIn } from "next-auth/react";
+import PublicImage from "@/components/ui/PublicImage";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -22,16 +23,27 @@ type LoginNotification = {
   teamApplication: { id: string; teamName: string } | null;
 };
 
+function verifyErrorMessage(verifyStatus?: string) {
+  if (verifyStatus === "invalid") return "Неверный код или ссылка.";
+  if (verifyStatus === "expired") return "Срок действия ссылки истёк.";
+  if (verifyStatus === "obsolete") return "Ссылка больше не актуальна.";
+  return "";
+}
+
 export default function AuthPanel({
   logoSrc,
   initialMode = "login",
+  verifyStatus,
 }: {
   logoSrc?: string | null;
   initialMode?: "login" | "register";
+  /** query verify с /sign-in (устаревшая ссылка, неверный код и т.д.) */
+  verifyStatus?: string;
 }) {
   const router = useRouter();
   const mode = initialMode;
-  const [error, setError] = useState("");
+  const googleActionLabel = mode === "register" ? "Зарегистрироваться через Google" : "Войти через Google";
+  const [error, setError] = useState(() => verifyErrorMessage(verifyStatus));
   const [message, setMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [emailHint, setEmailHint] = useState("");
@@ -115,7 +127,7 @@ export default function AuthPanel({
       sessionStorage.setItem("ll_login_notifications", JSON.stringify(body.notifications));
     }
 
-    router.push(mode === "login" ? "/tournaments" : "/");
+    router.push("/tournaments");
     router.refresh();
   };
 
@@ -153,7 +165,7 @@ export default function AuthPanel({
     >
       {logoSrc && (
         <div className="mb-4 flex justify-center">
-          <Image src={logoSrc} alt="Auth logo" width={56} height={56} className="h-14 w-14 object-contain opacity-90" />
+          <PublicImage src={logoSrc} alt="Auth logo" width={56} height={56} className="h-14 w-14 object-contain opacity-90" />
         </div>
       )}
       <h1 className="text-2xl font-black uppercase tracking-[0.2em] text-[#14ffec]">Auth Core</h1>
@@ -228,6 +240,14 @@ export default function AuthPanel({
 
         <button type="submit" disabled={isSubmitting} className="button-primary w-full">
           {isSubmitting ? "Обработка..." : mode === "login" ? "Войти" : "Создать аккаунт"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => void signIn("google", { callbackUrl: "/api/auth/oauth-bridge" })}
+          className="flex w-full items-center justify-center rounded-md border-0 bg-[linear-gradient(90deg,#4285F4_0%,#34A853_35%,#FBBC05_68%,#EA4335_100%)] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(66,133,244,0.35)] transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#14ffec] focus-visible:ring-offset-2 focus-visible:ring-offset-[#212121]"
+        >
+          {googleActionLabel}
         </button>
 
         {mode === "login" && (

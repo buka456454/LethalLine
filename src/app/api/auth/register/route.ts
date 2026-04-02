@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { fail, ok } from "@/lib/api";
-import { hashPassword, setSessionCookie, signSession } from "@/lib/auth";
+import { hashPassword, sessionPayloadFromUser, setSessionCookie, signSession } from "@/lib/auth";
 import { registerSchema } from "@/lib/schemas";
 import { rateLimit } from "@/lib/rate-limit";
 
@@ -13,29 +13,40 @@ export async function POST(request: Request) {
   const parsed = registerSchema.safeParse(body);
   if (!parsed.success) return fail("Invalid register payload", 422);
 
-  const { email, username, password } = parsed.data;
+  const { email, username, password, phone } = parsed.data;
+  const normalizedPhone = typeof phone === "string" ? phone.trim() || null : null;
   const existing = await prisma.user.findFirst({
     where: {
-      OR: [{ email }, { username }],
+      OR: [{ email }, { username }, ...(normalizedPhone ? [{ phone: normalizedPhone }] : [])],
     },
+    select: { email: true, username: true, phone: true },
   });
 
-  if (existing) return fail("User already exists", 409);
+  if (existing) {
+    if (existing.email === email) return fail("Этот email уже занят", 409);
+    if (existing.username === username) return fail("Этот ник уже занят", 409);
+    if (normalizedPhone && existing.phone === normalizedPhone) return fail("Этот номер уже зарегистрирован", 409);
+    return fail("User already exists", 409);
+  }
 
   const user = await prisma.user.create({
     data: {
       email,
       username,
+      phone: normalizedPhone,
       passwordHash: await hashPassword(password),
+    },
+    select: {
+      id: true,
+      email: true,
+      username: true,
+      role: true,
+      phone: true,
+      phoneVerifiedAt: true,
     },
   });
 
-  const token = await signSession({
-    sub: user.id,
-    role: user.role,
-    username: user.username,
-    email: user.email,
-  });
+  const token = await signSession(sessionPayloadFromUser(user));
   await setSessionCookie(token);
 
   return ok({

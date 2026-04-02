@@ -16,8 +16,29 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
     });
 
     if (!tournament) return fail("Tournament not found", 404);
+    const now = new Date();
+    const isCompleted = tournament.status === TournamentStatus.COMPLETED;
+    const isFinishedByTime = Boolean(tournament.endsAt && tournament.endsAt <= now);
+    if (isCompleted || isFinishedByTime) {
+      return fail("Tournament is completed", 400);
+    }
     if (tournament.status !== TournamentStatus.REGISTRATION_OPEN) {
       return fail("Registration is closed", 400);
+    }
+
+    if (tournament.requiresVerifiedExperience) {
+      const experienceProfile = await prisma.userGameProfile.findUnique({
+        where: {
+          userId_gameId: {
+            userId: session.sub,
+            gameId: tournament.gameId,
+          },
+        },
+        select: { experienceVerificationStatus: true },
+      });
+      if (experienceProfile?.experienceVerificationStatus !== "APPROVED") {
+        return fail("Для этого турнира нужен подтвержденный опыт. Загрузите скриншот в анкете и дождитесь одобрения.", 403);
+      }
     }
 
     if (tournament.registrations.length >= tournament.maxParticipants) {

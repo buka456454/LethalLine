@@ -30,3 +30,13 @@ export function pickBrandLogo(logos: BrandLogo[], slot: number) {
   const index = ((slot % logos.length) + logos.length) % logos.length;
   return logos[index];
 }
+
+export function pickBlueBrandLogo(logos: BrandLogo[]) {
+  if (logos.length === 0) return null;
+  const blueKeywords = ["blue", "cyan", "aqua", "teal", "azure", "голуб", "син"];
+  const found = logos.find((logo) => {
+    const normalized = logo.name.toLowerCase();
+    return blueKeywords.some((keyword) => normalized.includes(keyword));
+  });
+  return found ?? logos[0];
+}

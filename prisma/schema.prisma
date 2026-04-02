@@ -16,6 +16,8 @@ enum Role {
   USER
   ADMIN
   SUPERADMIN
+  JOURNALIST
+  COMMENTATOR
 }
 
 enum TournamentFormat {
@@ -28,6 +30,7 @@ enum TournamentStatus {
   DRAFT
   REGISTRATION_OPEN
   IN_PROGRESS
+  RESULTS_COUNTING
   COMPLETED
 }
 
@@ -44,6 +47,13 @@ enum RegistrationStatus {
 }
 
 enum TeamApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ExperienceVerificationStatus {
+  NOT_SUBMITTED
   PENDING
   APPROVED
   REJECTED
@@ -66,6 +76,11 @@ enum PaymentStatus {
   REFUND_FAILED
 }
 
+enum PrizeMode {
+  ENTRY_FEES
+  SPONSOR
+}
+
 model User {
   id                   String                    @id @default(cuid())
   email                String                    @unique
@@ -77,6 +92,10 @@ model User {
   role                 Role                      @default(USER)
   isBanned             Boolean                   @default(false)
   banReason            String?
+  phone                String?                   @unique
+  phoneVerifiedAt      DateTime?
+  phoneVerificationCodeHash  String?
+  phoneVerificationExpires   DateTime?
   createdAt            DateTime                  @default(now())
   updatedAt            DateTime                  @updatedAt
   registrations        TournamentRegistration[]
@@ -85,6 +104,12 @@ model User {
   notifications        UserTournamentNotification[]
   auditEvents          AuditLog[]                @relation("AuditActor")
   newsPosts            NewsPost[]                @relation("NewsAuthor")
+  gameProfiles         UserGameProfile[]
+  dialogsAsParticipantA ChatDialog[]             @relation("DialogParticipantA")
+  dialogsAsParticipantB ChatDialog[]             @relation("DialogParticipantB")
+  sentChatMessages     ChatMessage[]             @relation("ChatMessageSender")
+  readChatMessages     ChatMessage[]             @relation("ChatMessageReader")
+  streamCommentsEdited StreamComment[]           @relation("StreamCommentEditor")
 }
 
 model Game {
@@ -96,6 +121,28 @@ model Game {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   tournaments Tournament[]
+  userProfiles UserGameProfile[]
+}
+
+model UserGameProfile {
+  id           String   @id @default(cuid())
+  mmr          Int?
+  rankLabel    String?
+  hoursPlayed  Int?
+  primaryRole  String?
+  experienceVerificationStatus ExperienceVerificationStatus @default(NOT_SUBMITTED)
+  experienceProofImageUrl String?
+  experienceProofSubmittedAt DateTime?
+  experienceVerificationReviewedAt DateTime?
+  experienceVerificationNote String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  userId       String
+  gameId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  game         Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, gameId])
 }
 
 model Tournament {
@@ -105,12 +152,18 @@ model Tournament {
   description     String?
   format          TournamentFormat
   status          TournamentStatus           @default(DRAFT)
+  teamSize        Int                        @default(1)
+  maxTeams        Int                        @default(16)
   maxParticipants Int
   entryFeeMinor   Int                        @default(0)
   currency        CurrencyCode               @default(RUB)
+  eventDate       DateTime?
+  prizeMode       PrizeMode                  @default(ENTRY_FEES)
+  sponsorPrizeText String?
   startsAt        DateTime
   endsAt          DateTime?
   rules           String?
+  requiresVerifiedExperience Boolean                   @default(false)
   isPublished     Boolean                    @default(false)
   createdAt       DateTime                   @default(now())
   updatedAt       DateTime                   @updatedAt
@@ -210,11 +263,22 @@ model NewsPost {
   id         String   @id @default(cuid())
   title      String
   body       String
+  imageUrl   String?
   isPinned   Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   authorId   String
   author     User     @relation("NewsAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+}
+
+model StreamComment {
+  id          String   @id @default(cuid())
+  key         String   @unique @default("main")
+  text        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+  updatedBy   User?    @relation("StreamCommentEditor", fields: [updatedById], references: [id], onDelete: SetNull)
 }
 
 model Banner {
@@ -237,4 +301,37 @@ model AuditLog {
   createdAt  DateTime @default(now())
   actorId    String
   actor      User     @relation("AuditActor", fields: [actorId], references: [id], onDelete: Cascade)
+}
+
+model ChatDialog {
+  id             String        @id @default(cuid())
+  participantAId String
+  participantBId String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  participantA   User          @relation("DialogParticipantA", fields: [participantAId], references: [id], onDelete: Cascade)
+  participantB   User          @relation("DialogParticipantB", fields: [participantBId], references: [id], onDelete: Cascade)
+  messages       ChatMessage[]
+
+  @@unique([participantAId, participantBId])
+  @@index([participantAId])
+  @@index([participantBId])
+  @@index([updatedAt])
+}
+
+model ChatMessage {
+  id         String     @id @default(cuid())
+  dialogId   String
+  senderId   String
+  body       String
+  createdAt  DateTime   @default(now())
+  readAt     DateTime?
+  readById   String?
+  dialog     ChatDialog @relation(fields: [dialogId], references: [id], onDelete: Cascade)
+  sender     User       @relation("ChatMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  readBy     User?      @relation("ChatMessageReader", fields: [readById], references: [id], onDelete: SetNull)
+
+  @@index([dialogId, createdAt])
+  @@index([senderId])
+  @@index([createdAt])
 }

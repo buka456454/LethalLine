@@ -1,12 +1,30 @@
 import { fail, ok } from "@/lib/api";
-import { requireOwnerAdmin } from "@/lib/guards";
+import { isOwnerAdminSession } from "@/lib/auth";
+import { requireAdminTabAccess } from "@/lib/guards";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   try {
-    await requireOwnerAdmin();
+    const session = await requireAdminTabAccess();
+    const isOwner = isOwnerAdminSession(session);
 
-    const [users, tournaments, registrations, matches] = await Promise.all([
+    const streamCommentPromise = prisma.streamComment.findUnique({
+      where: { key: "main" },
+      select: { text: true, updatedAt: true },
+    });
+
+    if (!isOwner) {
+      const streamComment = await streamCommentPromise;
+      return ok({
+        users: [],
+        tournaments: [],
+        registrations: [],
+        matches: [],
+        streamComment,
+      });
+    }
+
+    const [users, tournaments, registrations, matches, streamComment] = await Promise.all([
       prisma.user.findMany({
         select: { id: true, username: true, email: true, role: true, isBanned: true },
         orderBy: { createdAt: "desc" },
@@ -27,9 +45,10 @@ export async function GET() {
         orderBy: { createdAt: "desc" },
         take: 100,
       }),
+      streamCommentPromise,
     ]);
 
-    return ok({ users, tournaments, registrations, matches });
+    return ok({ users, tournaments, registrations, matches, streamComment });
   } catch (error) {
     if (error instanceof Error && error.message === "UNAUTHORIZED") return fail("Unauthorized", 401);
     if (error instanceof Error && error.message === "FORBIDDEN") return fail("Forbidden", 403);

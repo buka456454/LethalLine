@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { RegistrationStatus } from "@prisma/client";
 import { redirect } from "next/navigation";
+import GameCoverPanel from "@/components/games/GameCoverPanel";
 import { readSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getTournamentStatusLabel } from "@/lib/tournamentStatus";
 import TournamentApplicationManager from "@/components/tournaments/TournamentApplicationManager";
 
 export const dynamic = "force-dynamic";
@@ -10,11 +12,17 @@ export const dynamic = "force-dynamic";
 type TournamentApplyDetails = {
   id: string;
   title: string;
-  game: { name: string };
+  game: { name: string; slug: string };
   status: string;
+  endsAt: Date | null;
+  teamSize: 1 | 2 | 5;
+  maxTeams: number;
   maxParticipants: number;
+  requiresVerifiedExperience: boolean;
   entryFeeMinor: number;
   currency: "RUB";
+  prizeMode: "ENTRY_FEES" | "SPONSOR";
+  sponsorPrizeText: string | null;
   registrations: Array<{ id: string; status: RegistrationStatus; userId: string }>;
   teamApplications: Array<{
     id: string;
@@ -47,9 +55,12 @@ export default async function TournamentApplyPage({ params }: { params: Promise<
     return <div className="w-full text-zinc-300">Турнир не найден.</div>;
   }
 
-  const myRegistration = tournament.registrations.find((registration) => registration.userId === session.sub);
   const myTeamApplication = tournament.teamApplications.find((application) => application.captainId === session.sub) ?? null;
-  const usedSlots = tournament.registrations.length + tournament.teamApplications.length;
+  const usedSlots = tournament.teamApplications.length;
+  const now = Date.now();
+  const isCompleted = tournament.status === "COMPLETED";
+  const isFinishedByTime = tournament.endsAt ? new Date(tournament.endsAt).getTime() <= now : false;
+  const canSubmitApplication = tournament.status === "REGISTRATION_OPEN" && !isFinishedByTime && !isCompleted;
 
   return (
     <div className="w-full space-y-4">
@@ -62,20 +73,31 @@ export default async function TournamentApplyPage({ params }: { params: Promise<
         </Link>
       </div>
 
-      <section className="rounded-xl border border-[#323232] bg-[#212121] p-6">
-        <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">{tournament.game.name}</p>
+      <GameCoverPanel slug={tournament.game.slug} contentClassName="p-6">
+        <p className="text-xs uppercase tracking-[0.16em] text-zinc-300">{tournament.game.name}</p>
         <h1 className="mt-2 text-3xl font-black uppercase tracking-[0.1em] text-[#14ffec]">{tournament.title}</h1>
-        <p className="mt-2 text-sm text-zinc-400">
-          Статус регистрации: {tournament.status} | Слоты: {usedSlots}/{tournament.maxParticipants}
+        <p className="mt-2 text-sm text-zinc-200">
+          Статус: {getTournamentStatusLabel(tournament.status)} | Команд: {usedSlots}/{tournament.maxTeams} | Участников:{" "}
+          {usedSlots * tournament.teamSize}/{tournament.maxParticipants}
         </p>
-        {myRegistration && <p className="mt-3 text-sm text-[#14ffec]">Ваша индивидуальная заявка: {myRegistration.status}</p>}
-      </section>
+        <p className="mt-2 text-sm text-zinc-200">
+          Формат команды: {tournament.teamSize === 1 ? "Соло" : tournament.teamSize === 2 ? "Дуо" : "Пати"} ({tournament.teamSize} чел.)
+        </p>
+        {tournament.requiresVerifiedExperience && (
+          <p className="mt-2 text-sm text-zinc-200">
+            Для участия нужен подтвержденный опыт в игре. Если еще не подтверждено, загрузите скриншот в анкете и дождитесь модерации.
+          </p>
+        )}
+      </GameCoverPanel>
 
       <TournamentApplicationManager
         tournamentId={tournament.id}
+        teamSize={tournament.teamSize}
         entryFeeMinor={tournament.entryFeeMinor}
         currency={tournament.currency}
+        requiresVerifiedExperience={tournament.requiresVerifiedExperience}
         existingTeamApplication={myTeamApplication}
+        canSubmitApplication={canSubmitApplication}
       />
     </div>
   );

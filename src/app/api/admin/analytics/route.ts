@@ -12,7 +12,11 @@ export async function GET() {
         prisma.user.count(),
         prisma.user.count({ where: { isBanned: true } }),
         prisma.tournament.count({
-          where: { status: { in: [TournamentStatus.REGISTRATION_OPEN, TournamentStatus.IN_PROGRESS] } },
+          where: {
+            status: {
+              in: [TournamentStatus.REGISTRATION_OPEN, TournamentStatus.IN_PROGRESS, TournamentStatus.RESULTS_COUNTING],
+            },
+          },
         }),
         prisma.tournamentRegistration.count(),
         prisma.tournamentRegistration.count({ where: { status: "APPROVED" } }),

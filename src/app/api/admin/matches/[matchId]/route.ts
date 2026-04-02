@@ -1,8 +1,10 @@
 import { fail, ok } from "@/lib/api";
 import { writeAuditLog } from "@/lib/audit";
+import { advanceWinnerToNextMatch } from "@/lib/bracket-advance";
 import { requireOwnerAdmin } from "@/lib/guards";
 import { prisma } from "@/lib/prisma";
 import { updateMatchSchema } from "@/lib/schemas";
+import { MatchStatus } from "@prisma/client";
 
 export async function PATCH(request: Request, context: { params: Promise<{ matchId: string }> }) {
   try {
@@ -15,6 +17,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ match
       where: { id: matchId },
       data: parsed.data,
     });
+
+    if (match.status === MatchStatus.FINISHED && match.winnerLabel) {
+      await advanceWinnerToNextMatch(match.id, match.winnerLabel);
+    }
 
     await writeAuditLog({
       actorId: session.sub,

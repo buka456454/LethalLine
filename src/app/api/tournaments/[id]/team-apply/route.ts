@@ -4,6 +4,7 @@ import { writeAuditLog } from "@/lib/audit";
 import { requireAuth } from "@/lib/guards";
 import { prisma } from "@/lib/prisma";
 import { teamApplicationSchema } from "@/lib/schemas";
+import { isAllowedTeamSize, requiredTeammates } from "@/lib/tournament";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -17,10 +18,29 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       include: { registrations: true, teamApplications: true },
     });
     if (!tournament) return fail("Tournament not found", 404);
+    const now = new Date();
+    const isCompleted = tournament.status === TournamentStatus.COMPLETED;
+    const isFinishedByTime = Boolean(tournament.endsAt && tournament.endsAt <= now);
+    if (isCompleted || isFinishedByTime) return fail("Tournament is completed", 400);
     if (tournament.status !== TournamentStatus.REGISTRATION_OPEN) return fail("Registration is closed", 400);
 
-    const allSlots = tournament.registrations.length + tournament.teamApplications.length;
-    if (allSlots >= tournament.maxParticipants) return fail("Tournament is full", 400);
+    if (tournament.requiresVerifiedExperience) {
+      const experienceProfile = await prisma.userGameProfile.findUnique({
+        where: {
+          userId_gameId: {
+            userId: session.sub,
+            gameId: tournament.gameId,
+          },
+        },
+        select: { experienceVerificationStatus: true },
+      });
+      if (experienceProfile?.experienceVerificationStatus !== "APPROVED") {
+        return fail("Для этого турнира нужен подтвержденный опыт. Загрузите скриншот в анкете и дождитесь одобрения.", 403);
+      }
+    }
+
+    const teamSlotsUsed = tournament.teamApplications.length;
+    if (teamSlotsUsed >= tournament.maxTeams) return fail("Tournament is full", 400);
 
     const uniqueUsernames = Array.from(
       new Set(parsed.data.memberUsernames.map((name) => name.trim()).filter((name) => name.length > 0)),
@@ -29,6 +49,18 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       where: { id: session.sub },
       select: { username: true },
     });
+    if (!captain) return fail("Captain user not found", 404);
+
+    if (!isAllowedTeamSize(tournament.teamSize)) return fail("Unsupported team size", 400);
+
+    const required = requiredTeammates(tournament.teamSize);
+    if (required > 0 && uniqueUsernames.length !== required) {
+      return fail(`Expected ${required} teammates for this tournament`, 422);
+    }
+    if (tournament.teamSize === 1 && uniqueUsernames.length > 0) {
+      return fail("Solo tournament accepts only one player", 422);
+    }
+
     const usernamesWithCaptain = captain
       ? Array.from(new Set([captain.username, ...uniqueUsernames]))
       : uniqueUsernames;
@@ -49,7 +81,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       create: {
         captainId: session.sub,
         tournamentId: id,
-        teamName: parsed.data.teamName,
+        teamName: tournament.teamSize === 1 ? `${captain.username} (соло)` : parsed.data.teamName,
         teamLogoUrl: parsed.data.teamLogoUrl || null,
         members: {
           create: usernamesWithCaptain.map((username) => ({
@@ -60,7 +92,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         },
       },
       update: {
-        teamName: parsed.data.teamName,
+        teamName: tournament.teamSize === 1 ? `${captain.username} (соло)` : parsed.data.teamName,
         teamLogoUrl: parsed.data.teamLogoUrl || null,
         status: "PENDING",
         members: {

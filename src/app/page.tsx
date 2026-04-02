@@ -1,11 +1,14 @@
 import Link from "next/link";
-import Image from "next/image";
 import { prisma } from "@/lib/prisma";
-import { isOwnerAdminSession, readSession } from "@/lib/auth";
+import { canAccessAdminTabSession, readSession } from "@/lib/auth";
 import { getBrandLogos, pickBrandLogo } from "@/lib/brand";
 import SaiIcon from "@/components/ui/SaiIcon";
-import TwitchLiveBlock from "@/components/home/TwitchLiveBlock";
+import PublicImage from "@/components/ui/PublicImage";
+import KickLiveBlock from "@/components/home/KickLiveBlock";
 import HomeTicker from "@/components/home/HomeTicker";
+import QuestionnaireNudge from "@/components/home/QuestionnaireNudge";
+import GameCoverPanel from "@/components/games/GameCoverPanel";
+import HomeNewsFeed, { type HomeNewsItem } from "@/components/home/HomeNewsFeed";
 
 export const dynamic = "force-dynamic";
 
@@ -13,22 +16,17 @@ type HomeTournament = {
   id: string;
   title: string;
   maxParticipants: number;
-  game: { name: string };
+  game: { name: string; slug: string };
   registrations: Array<{ id: string }>;
 };
 
-type HomeNews = {
-  id: string;
-  title: string;
-  body: string;
-  isPinned: boolean;
-  createdAt: Date;
-};
-
-export default async function Home() {
+export default async function Home({ searchParams }: { searchParams?: Promise<{ verify?: string }> }) {
+  const sp = (await searchParams) ?? {};
+  const verifyBanner = sp.verify === "ok";
   let tournaments: HomeTournament[] = [];
   let banners: Awaited<ReturnType<typeof prisma.banner.findMany>> = [];
-  let latestNews: HomeNews[] = [];
+  let latestNews: HomeNewsItem[] = [];
+  let streamCommentText = "";
   let platformStats = {
     users: 0,
     games: 0,
@@ -44,7 +42,7 @@ export default async function Home() {
       prisma.tournament.count({
         where: {
           status: {
-            in: ["REGISTRATION_OPEN", "IN_PROGRESS"],
+            in: ["REGISTRATION_OPEN", "IN_PROGRESS", "RESULTS_COUNTING"],
           },
         },
       }),
@@ -58,7 +56,11 @@ export default async function Home() {
       matches: matchesCount,
     };
 
-    [tournaments, banners, latestNews] = await Promise.all([
+    const [streamComment, tournamentsData, bannersData, latestNewsData] = await Promise.all([
+      prisma.streamComment.findUnique({
+        where: { key: "main" },
+        select: { text: true },
+      }),
       prisma.tournament.findMany({
         include: { game: true, registrations: true },
         orderBy: { startsAt: "asc" },
@@ -67,13 +69,18 @@ export default async function Home() {
       prisma.banner.findMany({ where: { isActive: true }, orderBy: { createdAt: "desc" }, take: 1 }),
       prisma.newsPost.findMany({
         orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
-        take: 3,
-      }) as Promise<HomeNews[]>,
+        take: 6,
+      }) as Promise<HomeNewsItem[]>,
     ]);
+    streamCommentText = streamComment?.text ?? "";
+    tournaments = tournamentsData;
+    banners = bannersData;
+    latestNews = latestNewsData;
   } catch {
     tournaments = [];
     banners = [];
     latestNews = [];
+    streamCommentText = "";
     platformStats = {
       users: 0,
       games: 0,
@@ -84,17 +91,44 @@ export default async function Home() {
 
   const heroBanner = banners[0];
   const homeLogo = pickBrandLogo(logos, 1);
-  const canAdmin = session ? isOwnerAdminSession(session) : false;
-  const twitchChannel = process.env.NEXT_PUBLIC_TWITCH_CHANNEL ?? "lethalline";
+  const canAdmin = session ? canAccessAdminTabSession(session) : false;
+  const kickChannel = process.env.NEXT_PUBLIC_KICK_CHANNEL ?? "lethalline";
+  const kickProfileUrl = `https://kick.com/${kickChannel}`;
+
+  let showQuestionnaireNudge = false;
+  if (session) {
+    try {
+      const profiles = await prisma.userGameProfile.findMany({
+        where: { userId: session.sub },
+        select: { mmr: true, rankLabel: true, hoursPlayed: true, primaryRole: true },
+      });
+      const hasFilled = profiles.some(
+        (p) =>
+          p.mmr != null ||
+          p.hoursPlayed != null ||
+          (p.rankLabel != null && p.rankLabel.trim() !== "") ||
+          (p.primaryRole != null && p.primaryRole.trim() !== ""),
+      );
+      showQuestionnaireNudge = !hasFilled;
+    } catch {
+      showQuestionnaireNudge = false;
+    }
+  }
+
   return (
     <div className="w-full space-y-6">
+      {verifyBanner ? (
+        <p className="rounded-lg border border-[#0d7377]/50 bg-[#0d7377]/15 px-4 py-3 text-center text-sm text-[#14ffec]">
+          Действие успешно выполнено.
+        </p>
+      ) : null}
       <section className="relative left-1/2 right-1/2 -mx-[50vw] w-screen overflow-hidden rounded-3xl bg-[radial-gradient(circle_at_18%_22%,rgba(20,255,236,0.18),transparent_46%),radial-gradient(circle_at_82%_18%,rgba(13,115,119,0.25),transparent_40%),linear-gradient(140deg,#141414_0%,#1b1b1b_40%,#101010_100%)] px-7 py-20 shadow-[0_40px_120px_rgba(0,0,0,0.6)] sm:px-12 sm:py-28 min-h-[720px]">
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,rgba(255,255,255,0.04),transparent_18%,transparent_82%,rgba(255,255,255,0.03))]" />
+        <div className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(to_bottom,rgba(255,255,255,0.04),transparent_18%,transparent_82%,rgba(255,255,255,0.03))]" />
         <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-[#0d7377]/25 blur-3xl animate-orbit-slow" />
         <div className="pointer-events-none absolute -left-24 -bottom-24 h-56 w-56 rounded-full bg-[#14ffec]/15 blur-3xl animate-orbit-reverse" />
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#14ffec] to-transparent opacity-60" />
 
-        <div className="relative grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+        <div className="relative z-10 grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
           <div>
             <p className="text-xs uppercase tracking-[0.32em] text-zinc-400">Esports Platform</p>
             <h1 className="mt-4 max-w-3xl text-4xl font-black uppercase leading-[1.05] tracking-[0.1em] text-[#14ffec] sm:text-5xl">
@@ -125,12 +159,13 @@ export default async function Home() {
               {homeLogo && (
                 <div className="mt-3 flex items-center gap-3">
                   <div className="grid h-14 w-14 place-items-center rounded-2xl bg-black/15">
-                    <Image
+                    <PublicImage
                       src={homeLogo.src}
                       alt="Главный логотип"
                       width={44}
                       height={44}
                       className="h-11 w-11 object-contain opacity-95"
+                      priority
                     />
                   </div>
                   <div>
@@ -156,11 +191,22 @@ export default async function Home() {
             </div>
           </div>
         </div>
+
       </section>
 
       <HomeTicker className="relative left-1/2 right-1/2 -mx-[75vw] w-[150vw] overflow-hidden" />
+      <div className="-mt-3 flex justify-end pr-4 sm:pr-6">
+        <Link
+          href="/guide"
+          className="guide-fab guide-fab-launch z-10 grid h-9 w-9 shrink-0 place-items-center rounded-full border border-[#14ffec]/40 bg-[#141414]/80 text-[#14ffec] shadow-lg shadow-black/50 ring-1 ring-white/10 backdrop-blur-sm transition hover:border-[#14ffec]/75 hover:bg-[#14ffec]/10 hover:shadow-[0_0_24px_rgba(20,255,236,0.2)]"
+          aria-label="Справка по сайту"
+          title="Справка по сайту"
+        >
+          <SaiIcon name="file" size={16} />
+        </Link>
+      </div>
 
-      <TwitchLiveBlock channel={twitchChannel} />
+      <KickLiveBlock channel={kickChannel} profileUrl={kickProfileUrl} streamComment={streamCommentText} />
 
       <section className="grid gap-4 md:grid-cols-6 xl:grid-cols-8">
         <StatCard title="Игроков на платформе" value={platformStats.users} icon="user" className="md:col-span-3 xl:col-span-3" />
@@ -174,8 +220,8 @@ export default async function Home() {
         <StatCard title="Матчей в системе" value={platformStats.matches} icon="video" className="md:col-span-4 xl:col-span-2" />
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-3">
-        <article className="surface rounded-xl p-5 xl:col-span-2">
+      <section>
+        <article className="surface rounded-xl p-5">
           <h2 className="text-xl font-black uppercase tracking-[0.12em] text-[#14ffec]">Как работает платформа</h2>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             <StepCard
@@ -195,47 +241,45 @@ export default async function Home() {
             />
           </div>
         </article>
-
-        <article className="surface rounded-xl p-5">
-          <h2 className="text-xl font-black uppercase tracking-[0.12em] text-[#14ffec]">Форматы турниров</h2>
-          <ul className="mt-4 space-y-2 text-sm text-zinc-300">
-            <li className="rounded border border-[#323232] bg-[#323232] p-3">Single Elimination - быстрый путь к финалу.</li>
-            <li className="rounded border border-[#323232] bg-[#323232] p-3">Double Elimination - шанс на камбэк через lower bracket.</li>
-            <li className="rounded border border-[#323232] bg-[#323232] p-3">Round Robin - каждый играет с каждым.</li>
-          </ul>
-        </article>
       </section>
 
       <section className="grid gap-4 md:grid-cols-4 xl:grid-cols-6">
         {tournaments.map((tournament, index) => (
-          <article
+          <div
             key={tournament.id}
-            className={`surface rounded-xl p-4 transition hover:border-[#0d7377] ${
+            className={`transition hover:border-[#0d7377] ${
               index === 0 ? "md:col-span-2 xl:col-span-3" : index === 1 ? "md:col-span-2 xl:col-span-2" : "xl:col-span-1"
             }`}
           >
-            <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">{tournament.game.name}</p>
-            <h2 className="mt-2 text-lg font-bold text-zinc-100">{tournament.title}</h2>
-            <p className="mt-2 text-sm text-zinc-400">
-              {tournament.registrations.length}/{tournament.maxParticipants} участников
-            </p>
-            <div className="mt-3 h-1.5 overflow-hidden rounded bg-[#323232]">
-              <div
-                className="h-full bg-gradient-to-r from-[#0d7377] to-[#14ffec] transition-all duration-500"
-                style={{
-                  width: `${Math.min(100, Math.round((tournament.registrations.length / tournament.maxParticipants) * 100))}%`,
-                }}
-              />
-            </div>
-            <Link href={`/tournaments/${tournament.id}`} className="mt-4 inline-block text-sm text-[#14ffec]">
-              Открыть турнир
-            </Link>
-          </article>
+            <GameCoverPanel
+              slug={tournament.game.slug}
+              minHeightClassName="min-h-[200px]"
+              className="h-full hover:border-[#0d7377]"
+              contentClassName="flex h-full min-h-[200px] flex-col p-4"
+            >
+              <p className="text-xs uppercase tracking-[0.18em] text-zinc-300">{tournament.game.name}</p>
+              <h2 className="mt-2 text-lg font-bold text-zinc-100">{tournament.title}</h2>
+              <p className="mt-2 text-sm text-zinc-300">
+                {tournament.registrations.length}/{tournament.maxParticipants} участников
+              </p>
+              <div className="mt-3 h-1.5 overflow-hidden rounded bg-black/40">
+                <div
+                  className="h-full bg-gradient-to-r from-[#0d7377] to-[#14ffec] transition-all duration-500"
+                  style={{
+                    width: `${Math.min(100, Math.round((tournament.registrations.length / tournament.maxParticipants) * 100))}%`,
+                  }}
+                />
+              </div>
+              <Link href={`/tournaments/${tournament.id}`} className="mt-auto pt-4 text-sm text-[#14ffec]">
+                Открыть турнир
+              </Link>
+            </GameCoverPanel>
+          </div>
         ))}
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-3">
-        <article className="surface rounded-xl p-5 lg:col-span-2">
+      <section>
+        <article className="surface rounded-xl p-5">
           <h2 className="text-xl font-black uppercase tracking-[0.12em] text-[#14ffec]">Сезонная дорожная карта</h2>
           <div className="mt-4 space-y-3">
             <TimelineRow stage="Q1" title="Запуск платформы" text="Регистрация, турнирные сетки, базовая модерация." />
@@ -244,45 +288,24 @@ export default async function Home() {
             <TimelineRow stage="Q4" title="Лиги и партнерства" text="Сезонные лиги, спонсорские блоки, публичный API." />
           </div>
         </article>
-
-        <article className="surface rounded-xl p-5">
-          <h2 className="text-xl font-black uppercase tracking-[0.12em] text-[#14ffec]">Быстрый FAQ</h2>
-          <div className="mt-4 space-y-2">
-            <FaqRow q="Как подать заявку?" a="Открой турнир и нажми Участвовать." />
-            <FaqRow q="Можно сменить роль?" a="Да, через модератора или superadmin." />
-            <FaqRow q="Где следить за матчем?" a="На странице турнира в live-сетке." />
-          </div>
-        </article>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-3">
-        <article className="surface rounded-xl p-5 lg:col-span-1">
-          <h2 className="text-xl font-black uppercase tracking-[0.12em] text-[#14ffec]">Почему Lethal Line</h2>
-          <ul className="mt-4 space-y-2 text-sm text-zinc-300">
-            <li className="rounded border border-[#323232] bg-[#323232] p-3">Гибкая админ-система: роли, модерация, audit log.</li>
-            <li className="rounded border border-[#323232] bg-[#323232] p-3">Адаптивная турнирная сетка для мобильных и desktop.</li>
-            <li className="rounded border border-[#323232] bg-[#323232] p-3">Современный dark UI с динамичными акцентами.</li>
-          </ul>
-        </article>
+      <HomeNewsFeed items={latestNews} />
 
-        <article className="surface rounded-xl p-5 lg:col-span-2">
-          <h2 className="text-xl font-black uppercase tracking-[0.12em] text-[#14ffec]">Новости и обновления</h2>
-          <div className="mt-4 space-y-3">
-            {latestNews.length === 0 && <p className="text-sm text-zinc-400">Новостей пока нет.</p>}
-            {latestNews.map((news) => (
-              <article key={news.id} className="rounded border border-[#323232] bg-[#323232] p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-sm font-semibold text-zinc-100">{news.title}</h3>
-                  {news.isPinned && (
-                    <span className="rounded bg-[#0d7377] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-black">
-                      pinned
-                    </span>
-                  )}
-                </div>
-                <p className="mt-2 text-xs text-zinc-300">{news.body.slice(0, 140)}</p>
-              </article>
-            ))}
-          </div>
+      <section>
+        <article className="surface rounded-xl p-5 md:p-6">
+          <h2 className="text-xl font-black uppercase tracking-[0.12em] text-[#14ffec]">Почему Lethal Line</h2>
+          <ul className="mt-4 grid gap-3 text-sm text-zinc-300 md:grid-cols-3">
+            <li className="rounded-lg border border-[#323232] bg-[#323232] p-4 transition hover:border-[#0d7377]/50">
+              Гибкая админ-система: роли, модерация, audit log.
+            </li>
+            <li className="rounded-lg border border-[#323232] bg-[#323232] p-4 transition hover:border-[#0d7377]/50">
+              Адаптивная турнирная сетка для мобильных и desktop.
+            </li>
+            <li className="rounded-lg border border-[#323232] bg-[#323232] p-4 transition hover:border-[#0d7377]/50">
+              Современный dark UI с динамичными акцентами.
+            </li>
+          </ul>
         </article>
       </section>
 
@@ -297,7 +320,13 @@ export default async function Home() {
               Contact hub
             </p>
             <h2 className="mt-2 text-2xl font-black uppercase tracking-[0.1em] text-[#14ffec]">Связь</h2>
-            <p className="mt-2 text-sm text-zinc-300">Выбирай удобный канал. Twitch подключим отдельно, как будет ссылка.</p>
+            <p className="mt-2 text-sm text-zinc-300">
+              Трансляции и анонсы — на{" "}
+              <a href={kickProfileUrl} target="_blank" rel="noreferrer" className="text-[#14ffec] hover:underline">
+                Kick
+              </a>
+              , быстрые новости — в Telegram.
+            </p>
           </div>
           <div className="rounded-full border border-[#14ffec]/30 bg-black/30 px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-zinc-300">
             Lethal Line Network
@@ -320,27 +349,34 @@ export default async function Home() {
           </a>
 
           <a
-            href="mailto:vladislausbelorukov@yandex.ru"
+            href="mailto:LethalLineEsports@yandex.ru"
             className="group md:col-span-5 rounded-2xl border border-[#323232] bg-[#181818]/85 p-4 transition hover:-translate-y-0.5 hover:border-[#14ffec]"
           >
             <p className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-zinc-400">
               <SaiIcon name="inbox" />
               Email
             </p>
-            <p className="mt-2 break-all text-lg font-bold text-zinc-100 group-hover:text-[#14ffec]">vladislausbelorukov@yandex.ru</p>
+            <p className="mt-2 break-all text-lg font-bold text-zinc-100 group-hover:text-[#14ffec]">LethalLineEsports@yandex.ru</p>
             <p className="mt-1 text-xs text-zinc-400">Для предложений и партнёрств.</p>
           </a>
 
-          <div className="md:col-span-2 rounded-2xl border border-dashed border-[#323232] bg-[#141414]/80 p-4 opacity-85">
-            <p className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-zinc-500">
+          <a
+            href={kickProfileUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="group md:col-span-2 rounded-2xl border border-[#53fc18]/45 bg-[#121212]/80 p-4 transition hover:-translate-y-0.5 hover:border-[#14ffec]"
+          >
+            <p className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-zinc-400">
               <SaiIcon name="video" />
-              Twitch
+              Kick
             </p>
-            <p className="mt-2 text-sm font-semibold text-zinc-300">Скоро</p>
-            <p className="mt-1 text-xs text-zinc-500">Ждём ссылку канала</p>
-          </div>
+            <p className="mt-2 text-lg font-bold text-zinc-100 group-hover:text-[#53fc18]">kick.com/{kickChannel}</p>
+            <p className="mt-1 text-xs text-zinc-400">Стримы турниров и эфиры Lethal Line.</p>
+          </a>
         </div>
       </footer>
+
+      <QuestionnaireNudge enabled={showQuestionnaireNudge} />
     </div>
   );
 }
@@ -401,11 +437,3 @@ function TimelineRow({ stage, title, text }: { stage: string; title: string; tex
   );
 }
 
-function FaqRow({ q, a }: { q: string; a: string }) {
-  return (
-    <div className="rounded border border-[#323232] bg-[#323232] p-3">
-      <p className="text-sm font-semibold text-zinc-100">{q}</p>
-      <p className="mt-1 text-xs text-zinc-300">{a}</p>
-    </div>
-  );
-}

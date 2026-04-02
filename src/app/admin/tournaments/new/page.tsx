@@ -25,12 +25,12 @@ export default async function AdminTournamentCreatePage() {
       <section className="surface rounded-2xl p-6">
         <p className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-zinc-500">
           <SaiIcon name="calendar" size={14} />
-          Tournament manager
+          Конструктор турнира
         </p>
         <h1 className="mt-3 text-3xl font-black uppercase tracking-[0.1em] text-[#14ffec]">Создание турнира</h1>
         <p className="mt-3 text-sm text-zinc-300">
-          Здесь настраивается турнир: формат сетки, слоты, даты, правила и (опционально) взнос за участие. Если взнос = 0 —
-          турнир бесплатный.
+          Всё на русском: формат команды (соло/дуо/пати), количество команд, авто-расчёт участников, турнир в один день и
+          прозрачный расчёт призов 50/30/20.
         </p>
       </section>
 

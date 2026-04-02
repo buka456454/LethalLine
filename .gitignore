@@ -41,3 +41,11 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# Пользовательские медиа (в проде: UPLOAD_STORAGE_ROOT + том)
+/storage/uploads
+!/storage/.gitkeep
+
+# Легаси-загрузки в public (не коммитить пользовательский контент)
+/public/uploads
+!/public/uploads/.gitkeep

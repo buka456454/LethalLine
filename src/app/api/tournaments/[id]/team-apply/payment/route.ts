@@ -22,6 +22,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
     if (!tournament) return fail("Tournament not found", 404);
+    const now = new Date();
+    const isCompleted = tournament.status === TournamentStatus.COMPLETED;
+    const isFinishedByTime = Boolean(tournament.endsAt && tournament.endsAt <= now);
+    if (isCompleted || isFinishedByTime) return fail("Tournament is completed", 400);
     if (tournament.status !== TournamentStatus.REGISTRATION_OPEN) return fail("Registration is closed", 400);
     if (tournament.entryFeeMinor <= 0) return fail("Tournament is free", 400);
 

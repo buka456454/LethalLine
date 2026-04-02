@@ -6,7 +6,7 @@ export async function GET() {
   try {
     await requireOwnerAdmin();
 
-    const [registrations, teamApplications] = await Promise.all([
+    const [registrations, teamApplications, experienceVerifications] = await Promise.all([
       prisma.tournamentRegistration.findMany({
         include: {
           user: {
@@ -34,9 +34,26 @@ export async function GET() {
         orderBy: { createdAt: "desc" },
         take: 300,
       }),
+      prisma.userGameProfile.findMany({
+        where: {
+          experienceVerificationStatus: {
+            in: ["PENDING", "APPROVED", "REJECTED"],
+          },
+        },
+        include: {
+          user: {
+            select: { id: true, username: true },
+          },
+          game: {
+            select: { id: true, name: true, slug: true },
+          },
+        },
+        orderBy: [{ experienceProofSubmittedAt: "desc" }, { updatedAt: "desc" }],
+        take: 300,
+      }),
     ]);
 
-    return ok({ registrations, teamApplications });
+    return ok({ registrations, teamApplications, experienceVerifications });
   } catch (error) {
     if (error instanceof Error && error.message === "UNAUTHORIZED") return fail("Unauthorized", 401);
     if (error instanceof Error && error.message === "FORBIDDEN") return fail("Forbidden", 403);

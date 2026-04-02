@@ -1,10 +1,10 @@
-import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { fail, ok } from "@/lib/api";
 import { requireAuth } from "@/lib/guards";
+import { saveUploadedImage } from "@/lib/uploads/saveUploadedImage";
 
-const ALLOWED_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/svg+xml"]);
+const MAX_BYTES = 3 * 1024 * 1024;
+
+const BLOCKED_TYPES = new Set(["image/svg+xml", "text/html", "application/xhtml+xml"]);
 
 export async function POST(request: Request) {
   try {
@@ -13,18 +13,14 @@ export async function POST(request: Request) {
     const file = formData.get("logo");
 
     if (!(file instanceof File)) return fail("Logo file is required", 422);
-    if (!ALLOWED_TYPES.has(file.type)) return fail("Unsupported image type", 415);
-    if (file.size > 3 * 1024 * 1024) return fail("File too large (max 3MB)", 413);
-
-    const extension = file.name.includes(".") ? file.name.slice(file.name.lastIndexOf(".")).toLowerCase() : ".png";
-    const filename = `${randomUUID()}${extension}`;
-    const uploadDir = path.join(process.cwd(), "public", "uploads", "team-logos");
-    await mkdir(uploadDir, { recursive: true });
+    if (file.type && BLOCKED_TYPES.has(file.type)) return fail("Unsupported image type", 415);
+    if (file.size > MAX_BYTES) return fail("File too large (max 3MB)", 413);
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    await writeFile(path.join(uploadDir, filename), buffer);
+    const saved = await saveUploadedImage("team-logos", buffer, { maxBytes: MAX_BYTES });
+    if (!saved.ok) return fail(saved.message, saved.status);
 
-    return ok({ logoUrl: `/uploads/team-logos/${filename}` }, 201);
+    return ok({ logoUrl: saved.value.publicPath }, 201);
   } catch (error) {
     if (error instanceof Error && error.message === "UNAUTHORIZED") return fail("Unauthorized", 401);
     return fail("Upload failed", 500);

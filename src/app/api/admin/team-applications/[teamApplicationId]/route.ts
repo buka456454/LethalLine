@@ -5,6 +5,7 @@ import { requireOwnerAdmin } from "@/lib/guards";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { getTBankConfigFromEnv, tbankCancelPayment } from "@/lib/payments/tbank";
+import { reseedTournamentBracket } from "@/lib/bracket-seeding";
 
 const payloadSchema = z.object({
   status: z.enum([TeamApplicationStatus.APPROVED, TeamApplicationStatus.REJECTED]),
@@ -114,6 +115,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ teamA
           message,
         })),
       });
+    }
+
+    if (parsed.data.status === TeamApplicationStatus.APPROVED) {
+      await reseedTournamentBracket(application.tournament.id);
     }
 
     await writeAuditLog({
