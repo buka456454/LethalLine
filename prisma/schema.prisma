@@ -59,6 +59,32 @@ enum ExperienceVerificationStatus {
   REJECTED
 }
 
+/** Внешняя платформа, на которой доказывается владение игровым аккаунтом. */
+enum ExternalProvider {
+  STEAM
+  FACEIT
+  RIOT
+}
+
+/**
+ * Чем именно подтверждён опыт. Порядок важен: чем ниже в списке, тем выше доверие
+ * (числовое значение хранится отдельно в UserGameProfile.trustLevel).
+ */
+enum VerificationMethod {
+  NONE
+  SELF_REPORTED
+  SCREENSHOT
+  LINKED_ACCOUNT
+  API
+}
+
+enum VerificationChallengeKind {
+  /** Код нужно временно вписать в поле профиля Steam. */
+  STEAM_PROFILE_CODE
+  /** Код должен быть виден в кадре скриншота. */
+  SCREENSHOT_CODE
+}
+
 enum CurrencyCode {
   RUB
 }
@@ -105,6 +131,8 @@ model User {
   auditEvents          AuditLog[]                @relation("AuditActor")
   newsPosts            NewsPost[]                @relation("NewsAuthor")
   gameProfiles         UserGameProfile[]
+  externalAccounts     ExternalAccount[]
+  verificationChallenges VerificationChallenge[]
   dialogsAsParticipantA ChatDialog[]             @relation("DialogParticipantA")
   dialogsAsParticipantB ChatDialog[]             @relation("DialogParticipantB")
   sentChatMessages     ChatMessage[]             @relation("ChatMessageSender")
@@ -122,6 +150,7 @@ model Game {
   updatedAt   DateTime     @updatedAt
   tournaments Tournament[]
   userProfiles UserGameProfile[]
+  verificationChallenges VerificationChallenge[]
 }
 
 model UserGameProfile {
@@ -135,6 +164,27 @@ model UserGameProfile {
   experienceProofSubmittedAt DateTime?
   experienceVerificationReviewedAt DateTime?
   experienceVerificationNote String?
+
+  // --- Провенанс подтверждения: откуда взяты данные и насколько им можно верить ---
+  /** Чем подтверждён опыт. Управляет trustLevel. */
+  verificationMethod   VerificationMethod @default(NONE)
+  /** Числовой уровень доверия, см. src/lib/verification/trust.ts. Дублирует method для быстрых сравнений в запросах. */
+  trustLevel           Int                @default(0)
+  /** Платформа, с которой прочитаны verified* поля. */
+  verificationSource   ExternalProvider?
+  /** Ранг, прочитанный из внешнего API (не то, что ввёл пользователь). */
+  verifiedRankLabel    String?
+  /** Числовой рейтинг из API: MMR, CS Rating, RR. */
+  verifiedRankNumeric  Int?
+  /** Часы в игре по данным платформы. */
+  verifiedHoursPlayed  Int?
+  /** Сработавшие сигналы риска, см. src/lib/verification/flags.ts. */
+  verificationFlags    String[]           @default([])
+  /** Когда последний раз успешно синхронизировали данные из API. */
+  verificationSyncedAt DateTime?
+  /** После этой даты снимок считается протухшим и требует пересинхронизации. */
+  verificationExpiresAt DateTime?
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   userId       String
@@ -143,6 +193,65 @@ model UserGameProfile {
   game         Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
 
   @@unique([userId, gameId])
+  @@index([verificationExpiresAt])
+}
+
+/**
+ * Доказанная привязка сайтового аккаунта к внешнему игровому.
+ * Уникальность по (provider, providerAccountId) не даёт двум людям
+ * использовать один и тот же Steam/FACEIT аккаунт как «свой».
+ */
+model ExternalAccount {
+  id                String           @id @default(cuid())
+  provider          ExternalProvider
+  /** SteamID64 / FACEIT player_id / Riot PUUID. */
+  providerAccountId String
+  /** Ник на платформе на момент последней проверки. */
+  handle            String?
+  profileUrl        String?
+  avatarUrl         String?
+  /** Как именно доказано владение: OPENID, OAUTH, PROFILE_CODE. */
+  proofMethod       String
+  linkedAt          DateTime         @default(now())
+  lastCheckedAt     DateTime?
+  userId            String
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@unique([userId, provider])
+  @@index([userId])
+}
+
+/**
+ * Чёрный список внешних аккаунтов. Живёт отдельно от ExternalAccount,
+ * чтобы блокировка не исчезала вместе с отвязкой аккаунта.
+ */
+model BlockedExternalAccount {
+  id                String           @id @default(cuid())
+  provider          ExternalProvider
+  providerAccountId String
+  reason            String?
+  createdAt         DateTime         @default(now())
+
+  @@unique([provider, providerAccountId])
+}
+
+/** Одноразовый код для доказательства владения без OAuth. */
+model VerificationChallenge {
+  id         String                    @id @default(cuid())
+  code       String                    @unique
+  kind       VerificationChallengeKind
+  provider   ExternalProvider?
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime                  @default(now())
+  userId     String
+  gameId     String?
+  user       User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  game       Game?                     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@index([userId, kind])
+  @@index([expiresAt])
 }
 
 model Tournament {

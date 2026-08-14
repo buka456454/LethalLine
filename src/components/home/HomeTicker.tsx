@@ -10,7 +10,7 @@ type Props = {
 
 const WORD_SETS = [
   ["LETHAL LINE", "ТУРНИРЫ", "МАТЧИ LIVE", "СЕТКА", "КОМАНДЫ", "НОВОСТИ", "СТРИМ", "ESPORTS"],
-  ["LETHAL LINE", "REG OPEN", "IN PROGRESS", "BRACKET", "LIVE SCORES", "ADMIN HUB", "NEWS", "STREAM"],
+  ["LETHAL LINE", "ПРИЁМ ЗАЯВОК", "ПРИЗОВОЙ ФОНД", "ТУРНИРНАЯ СЕТКА", "ПОИСК ИГРОКОВ", "ЧАТЫ", "ЭФИР", "CS2"],
   ["LETHAL LINE", "КИБЕРСПОРТ", "ЛИГИ", "СЕЗОН", "РЕЙТИНГИ", "СТАТИСТИКА", "ТРАНСЛЯЦИИ", "COMMUNITY"],
 ] as const;
 

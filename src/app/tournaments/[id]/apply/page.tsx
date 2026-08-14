@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic";
 type TournamentApplyDetails = {
   id: string;
   title: string;
+  gameId: string;
   game: { name: string; slug: string };
   status: string;
   endsAt: Date | null;
@@ -37,9 +38,8 @@ type TournamentApplyDetails = {
 
 export default async function TournamentApplyPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await readSession();
-  if (!session) redirect("/sign-in");
-
   const { id } = await params;
+  if (!session) redirect(`/sign-in?next=${encodeURIComponent(`/tournaments/${id}/apply`)}`);
   const tournament = (await prisma.tournament.findUnique({
     where: { id },
     include: {
@@ -62,32 +62,36 @@ export default async function TournamentApplyPage({ params }: { params: Promise<
   const isFinishedByTime = tournament.endsAt ? new Date(tournament.endsAt).getTime() <= now : false;
   const canSubmitApplication = tournament.status === "REGISTRATION_OPEN" && !isFinishedByTime && !isCompleted;
 
+  const gameProfile = await prisma.userGameProfile.findFirst({
+    where: { userId: session.sub, gameId: tournament.gameId },
+    select: { experienceVerificationStatus: true },
+  });
+  const experienceVerified = gameProfile?.experienceVerificationStatus === "APPROVED";
+
   return (
     <div className="w-full space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <Link
-          href={`/tournaments/${tournament.id}`}
-          className="rounded-lg border border-[#323232] bg-[#212121] px-4 py-2 text-sm text-zinc-200 hover:text-[#14ffec]"
-        >
-          Назад к турниру
-        </Link>
-      </div>
+      <Link href={`/tournaments/${tournament.id}`} className="button-ghost inline-flex text-xs uppercase tracking-[0.12em]">
+        ← к турниру
+      </Link>
 
       <GameCoverPanel slug={tournament.game.slug} contentClassName="p-6">
-        <p className="text-xs uppercase tracking-[0.16em] text-zinc-300">{tournament.game.name}</p>
+        <p className="text-[10px] uppercase tracking-[0.16em] text-zinc-400">{tournament.game.name}</p>
         <h1 className="mt-2 text-3xl font-black uppercase tracking-[0.1em] text-[#14ffec]">{tournament.title}</h1>
-        <p className="mt-2 text-sm text-zinc-200">
-          Статус: {getTournamentStatusLabel(tournament.status)} | Команд: {usedSlots}/{tournament.maxTeams} | Участников:{" "}
-          {usedSlots * tournament.teamSize}/{tournament.maxParticipants}
+        <p className="mt-2 text-sm text-zinc-300">
+          {getTournamentStatusLabel(tournament.status)} · заявились {usedSlots} из {tournament.maxTeams} команд ·{" "}
+          {tournament.teamSize === 1 ? "играют по одному" : `по ${tournament.teamSize} игроков в команде`}
+          {tournament.entryFeeMinor > 0
+            ? ` · взнос ${(tournament.entryFeeMinor / 100).toFixed(0)} ₽`
+            : " · участие бесплатное"}
         </p>
-        <p className="mt-2 text-sm text-zinc-200">
-          Формат команды: {tournament.teamSize === 1 ? "Соло" : tournament.teamSize === 2 ? "Дуо" : "Пати"} ({tournament.teamSize} чел.)
-        </p>
-        {tournament.requiresVerifiedExperience && (
-          <p className="mt-2 text-sm text-zinc-200">
-            Для участия нужен подтвержденный опыт в игре. Если еще не подтверждено, загрузите скриншот в анкете и дождитесь модерации.
+        {tournament.requiresVerifiedExperience && !experienceVerified ? (
+          <p className="mt-3 border border-[var(--ll-line)] bg-black/40 px-3 py-2 text-sm text-zinc-200">
+            В этот турнир допускают только игроков с подтверждённым рангом.{" "}
+            <Link href="/account/questionnaire" className="text-[#14ffec]">
+              Приложить скриншот в анкете
+            </Link>
           </p>
-        )}
+        ) : null}
       </GameCoverPanel>
 
       <TournamentApplicationManager
@@ -96,6 +100,7 @@ export default async function TournamentApplyPage({ params }: { params: Promise<
         entryFeeMinor={tournament.entryFeeMinor}
         currency={tournament.currency}
         requiresVerifiedExperience={tournament.requiresVerifiedExperience}
+        experienceVerified={experienceVerified}
         existingTeamApplication={myTeamApplication}
         canSubmitApplication={canSubmitApplication}
       />

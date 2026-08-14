@@ -2,11 +2,7 @@
 
 import { useEffect } from "react";
 
-type ScrollBackgroundFxProps = {
-  logoSrc?: string | null;
-};
-
-export default function ScrollBackgroundFx({ logoSrc }: ScrollBackgroundFxProps) {
+export default function ScrollBackgroundFx() {
   useEffect(() => {
     const root = document.documentElement;
     let rafId = 0;
@@ -38,15 +34,7 @@ export default function ScrollBackgroundFx({ logoSrc }: ScrollBackgroundFxProps)
 
   return (
     <div aria-hidden className="scroll-bg-fx">
-      <div className="scroll-bg-glow scroll-bg-glow-a" />
-      <div className="scroll-bg-glow scroll-bg-glow-b" />
-      {logoSrc ? (
-        <div className="scroll-bg-logo">
-          <img src={logoSrc} alt="" className="scroll-bg-logo-image" />
-        </div>
-      ) : (
-        <div className="scroll-bg-logo">LL</div>
-      )}
+      <div className="scroll-bg-watermark">LETHAL LINE</div>
     </div>
   );
 }

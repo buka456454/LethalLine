@@ -34,11 +34,12 @@ export default function AuthPanel({
   logoSrc,
   initialMode = "login",
   verifyStatus,
+  nextPath = "/tournaments",
 }: {
   logoSrc?: string | null;
   initialMode?: "login" | "register";
-  /** query verify с /sign-in (устаревшая ссылка, неверный код и т.д.) */
   verifyStatus?: string;
+  nextPath?: string;
 }) {
   const router = useRouter();
   const mode = initialMode;
@@ -127,7 +128,7 @@ export default function AuthPanel({
       sessionStorage.setItem("ll_login_notifications", JSON.stringify(body.notifications));
     }
 
-    router.push("/tournaments");
+    router.push(nextPath);
     router.refresh();
   };
 
@@ -159,30 +160,35 @@ export default function AuthPanel({
   };
 
   return (
-    <motion.section
-      initial={false}
-      className="mx-auto w-full max-w-md rounded-2xl border border-[#323232] bg-[#212121] p-6 shadow-[0_0_0_1px_#323232,0_20px_60px_rgba(0,0,0,0.45)]"
-    >
+    <div className="mx-auto grid w-full max-w-4xl gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+      <aside className="ll-frame ll-frame--brackets ll-grid relative overflow-hidden p-6">
+        <span className="ll-beam ll-beam--a" aria-hidden />
+        <p className="ll-kicker relative">{"//00 начало"}</p>
+        <h1 className="relative mt-3 text-2xl font-black uppercase tracking-[0.12em] text-[#14ffec]">
+          {mode === "register" ? "Создайте аккаунт" : "С возвращением"}
+        </h1>
+        <ul className="relative mt-6 space-y-3 text-sm text-zinc-400">
+          <li>1. Заполните анкету и укажите ранг — соперников подбираем по уровню.</li>
+          <li>2. Найдите игроков на нужные роли и соберите команду.</li>
+          <li>3. Подайте заявку на турнир и играйте за призовой фонд в рублях.</li>
+        </ul>
+      </aside>
+      <motion.section initial={false} className="ll-frame w-full p-6">
       {logoSrc && (
         <div className="mb-4 flex justify-center">
           <PublicImage src={logoSrc} alt="Auth logo" width={56} height={56} className="h-14 w-14 object-contain opacity-90" />
         </div>
       )}
-      <h1 className="text-2xl font-black uppercase tracking-[0.2em] text-[#14ffec]">Auth Core</h1>
-      <p className="mt-2 text-sm text-zinc-300">Регистрация, вход и безопасный доступ к турнирам.</p>
+      <h2 className="text-lg font-black uppercase tracking-[0.16em] text-[#14ffec]">Вход</h2>
+      <p className="mt-2 text-sm text-zinc-400">Email и пароль, либо Google.</p>
 
-      <div className="mt-5 grid grid-cols-2 overflow-hidden rounded-lg border border-[#323232]">
-        <a
-          href="/sign-in"
-          className={`block px-3 py-2 text-center text-sm font-semibold ${mode === "login" ? "bg-[#0d7377] text-black" : "bg-[#323232] text-zinc-300"}`}
-          aria-current={mode === "login" ? "page" : undefined}
-        >
+      <div className="ll-tabbar mt-5">
+        <a href={nextPath !== "/tournaments" ? `/sign-in?next=${encodeURIComponent(nextPath)}` : "/sign-in"} className={`ll-tab ${mode === "login" ? "is-active" : ""}`}>
           Вход
         </a>
         <a
-          href="/sign-in?mode=register"
-          className={`block px-3 py-2 text-center text-sm font-semibold ${mode === "register" ? "bg-[#0d7377] text-black" : "bg-[#323232] text-zinc-300"}`}
-          aria-current={mode === "register" ? "page" : undefined}
+          href={nextPath !== "/tournaments" ? `/sign-in?mode=register&next=${encodeURIComponent(nextPath)}` : "/sign-in?mode=register"}
+          className={`ll-tab ${mode === "register" ? "is-active" : ""}`}
         >
           Регистрация
         </a>
@@ -239,7 +245,7 @@ export default function AuthPanel({
         {message && <p className="rounded bg-[#323232] p-2 text-sm text-zinc-300">{message}</p>}
 
         <button type="submit" disabled={isSubmitting} className="button-primary w-full">
-          {isSubmitting ? "Обработка..." : mode === "login" ? "Войти" : "Создать аккаунт"}
+          {isSubmitting ? "Обработка..." : mode === "login" ? "Войти" : "Зарегистрироваться"}
         </button>
 
         <button
@@ -279,5 +285,6 @@ export default function AuthPanel({
         )}
       </form>
     </motion.section>
+    </div>
   );
 }

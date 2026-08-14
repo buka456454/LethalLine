@@ -3,7 +3,6 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import PublicImage from "@/components/ui/PublicImage";
-import SaiIcon from "@/components/ui/SaiIcon";
 import UserRoleBadge from "@/components/ui/UserRoleBadge";
 
 type Dialog = {
@@ -149,14 +148,13 @@ function ChatsPageInner() {
   return (
     <div className="w-full space-y-4">
       <header className="flex items-center gap-3">
-        <SaiIcon name="chat" size={20} />
-        <h1 className="text-3xl font-black uppercase tracking-[0.14em] text-[#14ffec]">Личные чаты</h1>
+        <h1 className="text-3xl font-black uppercase tracking-[0.12em] text-[#14ffec]">Чаты</h1>
       </header>
 
       {error && <p className="rounded bg-[#323232] p-2 text-sm text-[#14ffec]">{error}</p>}
 
-      <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
-        <aside className="surface rounded-xl p-3">
+      <div className="ll-frame grid gap-0 overflow-hidden lg:grid-cols-[300px_1fr]">
+        <aside className="border-b border-[var(--ll-line)] p-3 lg:border-b-0 lg:border-r">
           <h2 className="text-xs uppercase tracking-[0.18em] text-zinc-500">Диалоги</h2>
           {loadingDialogs ? (
             <p className="mt-3 text-sm text-zinc-500">Загрузка…</p>
@@ -205,7 +203,7 @@ function ChatsPageInner() {
           )}
         </aside>
 
-        <section className="surface flex h-[70vh] min-h-[520px] max-h-[760px] min-w-0 flex-col overflow-hidden rounded-xl">
+        <section className="flex h-[70vh] min-h-[480px] min-w-0 flex-col overflow-hidden">
           <div className="border-b border-[#323232] px-4 py-3">
             <p className="flex items-center gap-2 text-sm font-semibold text-zinc-100">
               <span>{activeDialog ? activeDialog.peer.displayName || activeDialog.peer.username : "Выберите диалог"}</span>

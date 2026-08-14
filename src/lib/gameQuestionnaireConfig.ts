@@ -3,6 +3,8 @@
  * Значения сохраняются в rankLabel / primaryRole как строки (как и раньше).
  */
 
+import { dotaMedalLabels, premierBucketLabels } from "@/lib/verification/rankLabels";
+
 export type SelectOption = { value: string; label: string };
 
 export type GameQuestionnaireUi = {
@@ -29,28 +31,58 @@ export type GameQuestionnaireUi = {
   };
 };
 
-const ROMAN = ["I", "II", "III", "IV", "V"] as const;
+export const CUSTOM_SENTINEL = "__custom__";
+
+/** Как несколько ролей лежат в одном строковом поле `primaryRole`. */
+export const ROLE_SEPARATOR = " · ";
+export const MAX_ROLES = 3;
+
+export function parseRoles(stored: string | null | undefined): string[] {
+  if (!stored) return [];
+  return stored
+    .split(/\s*[·|,;]\s*/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0 && part !== CUSTOM_SENTINEL);
+}
+
+export function serializeRoles(roles: string[]): string {
+  const unique: string[] = [];
+  for (const role of roles) {
+    const trimmed = role.trim();
+    if (!trimmed || trimmed === CUSTOM_SENTINEL) continue;
+    if (unique.some((item) => item.toLowerCase() === trimmed.toLowerCase())) continue;
+    unique.push(trimmed);
+    if (unique.length >= MAX_ROLES) break;
+  }
+  return unique.join(ROLE_SEPARATOR);
+}
+
+/**
+ * Явный ответ «в эту дисциплину не играю». Хранится в rankLabel как обычная строка,
+ * но потребители (поиск напарников, публичный профиль) не считают это рангом.
+ */
+export const NOT_PLAYED_VALUE = "Не играл";
+export const NOT_PLAYED_LABEL = "Нет опыта / не играл";
+
+export function isNotPlayed(value: string | null | undefined) {
+  return typeof value === "string" && value.trim() === NOT_PLAYED_VALUE;
+}
+
+/** Ставит «нет опыта» сразу после нейтрального пункта, чтобы вариант был у каждой игры. */
+function withNotPlayed(options: SelectOption[]): SelectOption[] {
+  const notPlayed: SelectOption = { value: NOT_PLAYED_VALUE, label: NOT_PLAYED_LABEL };
+  const [first, ...rest] = options;
+  if (!first) return [notPlayed];
+  return first.value === "" ? [first, notPlayed, ...rest] : [notPlayed, first, ...rest];
+}
 
 function dotaMedalOptions(): SelectOption[] {
-  const tiers: { key: string; ru: string }[] = [
-    { key: "herald", ru: "Вышка" },
-    { key: "guardian", ru: "Страж" },
-    { key: "crusader", ru: "Рыцарь" },
-    { key: "archon", ru: "Архонт" },
-    { key: "legend", ru: "Легенда" },
-    { key: "ancient", ru: "Власть" },
-    { key: "divine", ru: "Божество" },
-  ];
   const out: SelectOption[] = [{ value: "", label: "Не калиброван / не указываю" }];
-  for (const t of tiers) {
-    for (let i = 0; i < 5; i++) {
-      const label = `${t.ru} ${ROMAN[i]}`;
-      out.push({ value: label, label });
-    }
+  for (const label of dotaMedalLabels()) {
+    out.push({ value: label, label });
   }
-  out.push({ value: "Титан (Immortal)", label: "Титан (Immortal)" });
-  out.push({ value: "__custom__", label: "Свой вариант (ввести вручную)…" });
-  return out;
+  out.push({ value: CUSTOM_SENTINEL, label: "Свой вариант (ввести вручную)…" });
+  return withNotPlayed(out);
 }
 
 function valorantRankOptions(): SelectOption[] {
@@ -72,12 +104,13 @@ function valorantRankOptions(): SelectOption[] {
     }
   }
   out.push({ value: "Радиант", label: "Радиант" });
-  out.push({ value: "__custom__", label: "Свой вариант…" });
-  return out;
+  out.push({ value: CUSTOM_SENTINEL, label: "Свой вариант…" });
+  return withNotPlayed(out);
 }
 
 function cs2RankOptions(): SelectOption[] {
   const ranks: string[] = [
+    ...premierBucketLabels(),
     "Серебро I",
     "Серебро II",
     "Серебро III",
@@ -95,15 +128,14 @@ function cs2RankOptions(): SelectOption[] {
     "Легендарный орёл мастер",
     "Высший золотой",
     "Глобальная элита",
-    "Только Premier / Faceit (ранг в поле ниже)",
     "Не ранжируюсь в MM",
   ];
   const out: SelectOption[] = [{ value: "", label: "Не указываю" }];
   for (const r of ranks) {
     out.push({ value: r, label: r });
   }
-  out.push({ value: "__custom__", label: "Свой вариант…" });
-  return out;
+  out.push({ value: CUSTOM_SENTINEL, label: "Свой вариант…" });
+  return withNotPlayed(out);
 }
 
 const DOTA_ROLES: SelectOption[] = [
@@ -114,7 +146,7 @@ const DOTA_ROLES: SelectOption[] = [
   { value: "Позиция 4 — саппорт (полу)", label: "Позиция 4 — саппорт (полу)" },
   { value: "Позиция 5 — саппорт (лёгкий)", label: "Позиция 5 — саппорт (лёгкий)" },
   { value: "Универсал / флекс", label: "Универсал / флекс" },
-  { value: "__custom__", label: "Свой вариант…" },
+  { value: CUSTOM_SENTINEL, label: "Свой вариант…" },
 ];
 
 const VAL_ROLES: SelectOption[] = [
@@ -124,7 +156,7 @@ const VAL_ROLES: SelectOption[] = [
   { value: "Контролёр", label: "Контролёр" },
   { value: "Страж", label: "Страж" },
   { value: "Флекс-роли", label: "Флекс-роли" },
-  { value: "__custom__", label: "Свой вариант…" },
+  { value: CUSTOM_SENTINEL, label: "Свой вариант…" },
 ];
 
 const CS2_ROLES: SelectOption[] = [
@@ -136,7 +168,7 @@ const CS2_ROLES: SelectOption[] = [
   { value: "Лёркер", label: "Лёркер" },
   { value: "Рифлер", label: "Рифлер" },
   { value: "Универсал", label: "Универсал" },
-  { value: "__custom__", label: "Свой вариант…" },
+  { value: CUSTOM_SENTINEL, label: "Свой вариант…" },
 ];
 
 const CONFIG: Record<string, GameQuestionnaireUi> = {
@@ -151,7 +183,7 @@ const CONFIG: Record<string, GameQuestionnaireUi> = {
     },
     rank: { mode: "select", label: "Медаль рейтинга", options: dotaMedalOptions() },
     hours: { label: "Часы в Dota 2", placeholder: "Steam / общее время" },
-    role: { mode: "select", label: "Основная позиция", options: DOTA_ROLES },
+    role: { mode: "select", label: "Позиции", options: DOTA_ROLES },
   },
   valorant: {
     slug: "valorant",
@@ -165,7 +197,7 @@ const CONFIG: Record<string, GameQuestionnaireUi> = {
     },
     rank: { mode: "select", label: "Ранг актов", options: valorantRankOptions() },
     hours: { label: "Часы в Valorant", placeholder: "По желанию" },
-    role: { mode: "select", label: "Предпочитаемая роль", options: VAL_ROLES },
+    role: { mode: "select", label: "Роли", options: VAL_ROLES },
   },
   cs2: {
     slug: "cs2",
@@ -179,7 +211,7 @@ const CONFIG: Record<string, GameQuestionnaireUi> = {
     },
     rank: { mode: "select", label: "Ранг в соревновательном режиме", options: cs2RankOptions() },
     hours: { label: "Часы в CS2", placeholder: "Steam" },
-    role: { mode: "select", label: "Роль в команде", options: CS2_ROLES },
+    role: { mode: "select", label: "Роли в команде", options: CS2_ROLES },
   },
 };
 
@@ -192,7 +224,14 @@ const DEFAULT_UI: GameQuestionnaireUi = {
     placeholder: "Очки рейтинга",
     emphasizeOptional: true,
   },
-  rank: { mode: "freeText", label: "Звание / ранг" },
+  rank: {
+    mode: "select",
+    label: "Звание / ранг",
+    options: withNotPlayed([
+      { value: "", label: "Не указываю" },
+      { value: CUSTOM_SENTINEL, label: "Свой вариант (ввести вручную)…" },
+    ]),
+  },
   hours: { label: "Часы в игре", placeholder: "Например 1200" },
   role: { mode: "freeText", label: "Роль" },
 };
@@ -200,8 +239,6 @@ const DEFAULT_UI: GameQuestionnaireUi = {
 export function getGameQuestionnaireUi(slug: string): GameQuestionnaireUi {
   return CONFIG[slug] ?? DEFAULT_UI;
 }
-
-export const CUSTOM_SENTINEL = "__custom__";
 
 /** Текущее значение → значение <select> и текст кастома */
 export function splitSelectValue(

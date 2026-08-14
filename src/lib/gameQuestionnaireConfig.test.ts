@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CUSTOM_SENTINEL, mergeSelectValue, splitSelectValue } from "./gameQuestionnaireConfig";
+import { CUSTOM_SENTINEL, MAX_ROLES, mergeSelectValue, parseRoles, serializeRoles, splitSelectValue } from "./gameQuestionnaireConfig";
 
 const sample = [
   { value: "", label: "—" },
@@ -31,5 +31,27 @@ describe("mergeSelectValue", () => {
   });
   it("custom", () => {
     expect(mergeSelectValue(CUSTOM_SENTINEL, "  x  ")).toBe("x");
+  });
+});
+
+describe("parseRoles / serializeRoles", () => {
+  it("keeps a single legacy role", () => {
+    expect(parseRoles("Позиция 4 — саппорт (полу)")).toEqual(["Позиция 4 — саппорт (полу)"]);
+  });
+  it("splits several roles", () => {
+    expect(parseRoles("Позиция 1 — керри · Позиция 4 — саппорт (полу)")).toEqual([
+      "Позиция 1 — керри",
+      "Позиция 4 — саппорт (полу)",
+    ]);
+  });
+  it("caps at three and drops duplicates", () => {
+    expect(
+      serializeRoles(["Керри", "Мид", "керри", "Оффлейн", "Саппорт"]),
+    ).toBe("Керри · Мид · Оффлейн");
+  });
+  it("round-trips", () => {
+    const stored = serializeRoles(["Дуэлянт", "Страж"]);
+    expect(parseRoles(stored)).toEqual(["Дуэлянт", "Страж"]);
+    expect(stored.split(" · ").length).toBeLessThanOrEqual(MAX_ROLES);
   });
 });

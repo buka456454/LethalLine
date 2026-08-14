@@ -4,8 +4,10 @@ import { readSession } from "@/lib/auth";
 import { loadPublicProfileActivity } from "@/lib/publicProfileActivity";
 import { prisma } from "@/lib/prisma";
 import { getTournamentStatusLabel } from "@/lib/tournamentStatus";
+import { isNotPlayed } from "@/lib/gameQuestionnaireConfig";
 import PublicImage from "@/components/ui/PublicImage";
 import UserRoleBadge from "@/components/ui/UserRoleBadge";
+import StartChatButton from "@/components/ui/StartChatButton";
 
 export const dynamic = "force-dynamic";
 
@@ -70,10 +72,16 @@ export default async function PublicUserProfilePage({ params }: { params: Promis
   const activity = await loadPublicProfileActivity(user.id, user.username);
 
   const hasAnyStat = (p: (typeof user.gameProfiles)[number]) =>
-    p.mmr != null || (p.rankLabel != null && p.rankLabel.trim() !== "") || p.hoursPlayed != null || (p.primaryRole != null && p.primaryRole.trim() !== "");
+    !isNotPlayed(p.rankLabel) &&
+    (p.mmr != null ||
+      (p.rankLabel != null && p.rankLabel.trim() !== "") ||
+      p.hoursPlayed != null ||
+      (p.primaryRole != null && p.primaryRole.trim() !== ""));
 
   const filledProfiles = user.gameProfiles.filter(hasAnyStat);
-  const gameTitles = [...new Set(user.gameProfiles.map((p) => p.game.name))];
+  const notPlayedGames = user.gameProfiles.filter((p) => isNotPlayed(p.rankLabel)).map((p) => p.game.name);
+  const rankVerified = user.gameProfiles.some((p) => p.experienceVerificationStatus === "APPROVED");
+  const gameTitles = [...new Set(filledProfiles.map((p) => p.game.name))];
   const initials = (user.displayName || user.username || "U").trim().slice(0, 2).toUpperCase();
   const avatar = user.avatarUrl;
 
@@ -81,7 +89,7 @@ export default async function PublicUserProfilePage({ params }: { params: Promis
 
   return (
     <div className="w-full space-y-6">
-      <section className="surface w-full rounded-xl p-6">
+      <section className="ll-frame w-full p-6">
         <div className="flex flex-col gap-6 md:flex-row md:items-start">
           <div className="flex h-36 w-36 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#323232] bg-[#323232]">
             {avatar ? (
@@ -96,27 +104,34 @@ export default async function PublicUserProfilePage({ params }: { params: Promis
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-sm text-zinc-400">@{user.username}</p>
               <UserRoleBadge role={user.role} size="sm" />
+              {rankVerified ? (
+                <span className="border border-[#14ffec] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#14ffec]">
+                  ранг проверен
+                </span>
+              ) : null}
             </div>
             <p className="mt-2 text-xs text-zinc-500">На сайте с {new Date(user.createdAt).toLocaleDateString()}</p>
             {isOwner && (
               <div className="mt-4 flex flex-wrap gap-3">
                 <Link href="/account/edit" className="button-primary inline-flex">
-                  Редактировать профиль
+                  Редактировать
                 </Link>
-                <Link
-                  href="/account/questionnaire"
-                  className="inline-flex items-center rounded border border-[#323232] px-4 py-2 text-sm text-zinc-200 hover:border-[#0d7377] hover:text-[#14ffec]"
-                >
-                  Заполнить анкету
+                <Link href="/account/questionnaire" className="button-secondary inline-flex">
+                  Анкета
                 </Link>
               </div>
             )}
+            {!isOwner && session ? (
+              <div className="mt-4">
+                <StartChatButton peerUserId={user.id} />
+              </div>
+            ) : null}
             {user.bio && <p className="mt-4 max-w-2xl text-sm leading-relaxed text-zinc-200">{user.bio}</p>}
           </div>
         </div>
       </section>
 
-      <section className="surface w-full rounded-xl p-6">
+      <section className="ll-frame w-full p-6">
         <h2 className="text-lg font-black uppercase tracking-[0.12em] text-[#14ffec]">Об игроке</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-3">
           <div className="rounded-lg border border-[#323232] bg-[#212121] p-4 text-center">
@@ -146,13 +161,12 @@ export default async function PublicUserProfilePage({ params }: { params: Promis
           )}
         </ul>
         <p className="mt-3 text-xs text-zinc-600">
-          Победы считаются по сетке турниров: ваш ник (соло) или название команды совпало с победителем в матче. Денежные призы на
-          платформе не привязаны к профилю автоматически — смотрите условия на странице турнира.
+          Победы считаются по сетке, не по скрину в чате.
         </p>
       </section>
 
       {wonTournamentTitles.length > 0 && (
-        <section className="surface w-full rounded-xl p-6">
+        <section className="ll-frame w-full p-6">
           <h2 className="text-lg font-black uppercase tracking-[0.12em] text-[#14ffec]">Турнирные победы</h2>
           <ul className="mt-4 space-y-3">
             {wonTournamentTitles.map((w) => (
@@ -170,7 +184,7 @@ export default async function PublicUserProfilePage({ params }: { params: Promis
         </section>
       )}
 
-      <section className="surface w-full rounded-xl p-6">
+      <section className="ll-frame w-full p-6">
         <h2 className="text-lg font-black uppercase tracking-[0.12em] text-[#14ffec]">Участие в турнирах</h2>
         {tournaments.length === 0 ? (
           <p className="mt-3 text-sm text-zinc-500">Пока нет заявок и регистраций.</p>
@@ -206,7 +220,7 @@ export default async function PublicUserProfilePage({ params }: { params: Promis
         )}
       </section>
 
-      <section className="surface w-full rounded-xl p-6">
+      <section className="ll-frame w-full p-6">
         <h2 className="text-lg font-black uppercase tracking-[0.12em] text-[#14ffec]">Игровая анкета</h2>
         {filledProfiles.length === 0 ? (
           <p className="mt-3 text-sm text-zinc-500">Пользователь ещё не заполнил анкету.</p>
@@ -244,6 +258,11 @@ export default async function PublicUserProfilePage({ params }: { params: Promis
               </li>
             ))}
           </ul>
+        )}
+        {notPlayedGames.length > 0 && (
+          <p className="mt-4 text-xs uppercase tracking-[0.14em] text-zinc-600">
+            не играет: {notPlayedGames.join(" · ")}
+          </p>
         )}
       </section>
     </div>

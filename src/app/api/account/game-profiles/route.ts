@@ -1,6 +1,7 @@
 import { fail, ok } from "@/lib/api";
 import { readSession } from "@/lib/auth";
 import { ensureCoreGames } from "@/lib/coreGames";
+import { isNotPlayed, NOT_PLAYED_VALUE } from "@/lib/gameQuestionnaireConfig";
 import { prisma } from "@/lib/prisma";
 import { putUserGameProfilesSchema } from "@/lib/schemas";
 
@@ -92,8 +93,10 @@ export async function PUT(request: Request) {
 
     await prisma.$transaction(async (tx) => {
       for (const row of parsed.data.profiles) {
-        const proofRaw = row.experienceProofImageUrl?.trim();
-        const hasProofPayload = row.experienceProofImageUrl !== undefined;
+        // «Нет опыта» — самодостаточный ответ: ранг, часы, роль и скриншот к нему не применимы.
+        const notPlayed = isNotPlayed(row.rankLabel);
+        const proofRaw = notPlayed ? undefined : row.experienceProofImageUrl?.trim();
+        const hasProofPayload = notPlayed || row.experienceProofImageUrl !== undefined;
         const hasProofValue = Boolean(proofRaw);
 
         if (isProfileEmpty(row)) {
@@ -108,10 +111,10 @@ export async function PUT(request: Request) {
           create: {
             userId,
             gameId: row.gameId,
-            mmr: row.mmr ?? null,
-            rankLabel: row.rankLabel?.trim() || null,
-            hoursPlayed: row.hoursPlayed ?? null,
-            primaryRole: row.primaryRole?.trim() || null,
+            mmr: notPlayed ? null : row.mmr ?? null,
+            rankLabel: notPlayed ? NOT_PLAYED_VALUE : row.rankLabel?.trim() || null,
+            hoursPlayed: notPlayed ? null : row.hoursPlayed ?? null,
+            primaryRole: notPlayed ? null : row.primaryRole?.trim() || null,
             experienceVerificationStatus: hasProofValue ? "PENDING" : "NOT_SUBMITTED",
             experienceProofImageUrl: hasProofValue ? proofRaw : null,
             experienceProofSubmittedAt: hasProofValue ? new Date() : null,
@@ -119,10 +122,10 @@ export async function PUT(request: Request) {
             experienceVerificationNote: null,
           },
           update: {
-            mmr: row.mmr ?? null,
-            rankLabel: row.rankLabel?.trim() || null,
-            hoursPlayed: row.hoursPlayed ?? null,
-            primaryRole: row.primaryRole?.trim() || null,
+            mmr: notPlayed ? null : row.mmr ?? null,
+            rankLabel: notPlayed ? NOT_PLAYED_VALUE : row.rankLabel?.trim() || null,
+            hoursPlayed: notPlayed ? null : row.hoursPlayed ?? null,
+            primaryRole: notPlayed ? null : row.primaryRole?.trim() || null,
             ...(hasProofPayload
               ? hasProofValue
                 ? {

@@ -6,8 +6,16 @@ import TournamentAdminActions from "@/components/tournaments/TournamentAdminActi
 import TournamentPodium from "@/components/tournaments/TournamentPodium";
 import { isOwnerAdminSession, readSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getTournamentStatusLabel } from "@/lib/tournamentStatus";
+import { getApplicationStatusLabel, getTournamentStatusLabel } from "@/lib/tournamentStatus";
 import { computeTournamentPodium } from "@/lib/tournamentPodium";
+import { formatRubFromMinor } from "@/lib/money";
+import CtaBox from "@/components/ui/CtaBox";
+import Frame from "@/components/ui/Frame";
+import Kicker from "@/components/ui/Kicker";
+import Hint from "@/components/ui/Hint";
+import Reveal from "@/components/motion/Reveal";
+import SplitHeading from "@/components/motion/SplitHeading";
+import { StaggerGroup, StaggerItem } from "@/components/motion/Stagger";
 
 export const dynamic = "force-dynamic";
 
@@ -110,51 +118,91 @@ export default async function TournamentDetailsPage({ params }: { params: Promis
       ? computeTournamentPodium(tournament.matches, tournament.format)
       : null;
 
+  const applyHref = session
+    ? `/tournaments/${tournament.id}/apply`
+    : `/sign-in?next=${encodeURIComponent(`/tournaments/${tournament.id}/apply`)}`;
+  const slotsLeft = Math.max(0, tournament.maxTeams - tournament.teamApplications.length);
+
   return (
     <div className="w-full">
-      <GameCoverPanel slug={tournament.game.slug} contentClassName="p-6">
-        <p className="text-xs uppercase tracking-[0.16em] text-zinc-300">{tournament.game.name}</p>
-        <h1 className="mt-2 text-3xl font-black uppercase tracking-[0.1em] text-[#14ffec]">{tournament.title}</h1>
-        <p className="mt-3 max-w-3xl text-zinc-200">{tournament.description ?? "Описание скоро появится."}</p>
-        <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-zinc-200">
-          <span className="rounded bg-black/45 px-2 py-1 backdrop-blur-sm">{tournament.format}</span>
-          <span>Статус: {getTournamentStatusLabel(tournament.status)}</span>
-          <span>Формат команды: {tournament.teamSize === 1 ? "Соло" : tournament.teamSize === 2 ? "Дуо" : "Пати"}</span>
-          <span>Команд: {tournament.teamApplications.length}/{tournament.maxTeams}</span>
-          <span>Участников: {tournament.teamApplications.length * tournament.teamSize}/{tournament.maxParticipants}</span>
-          {tournament.requiresVerifiedExperience ? <span>Требуется подтвержденный опыт</span> : null}
-        </div>
-        <div className="mt-3 rounded bg-black/50 p-3 text-sm text-zinc-200 backdrop-blur-sm">
-          {tournament.prizeMode === "SPONSOR" ? (
-            <p>Приз от спонсора: {tournament.sponsorPrizeText ?? "Будет объявлен позже"}</p>
-          ) : (
-            <div className="space-y-1">
-              <p>Призовой от взносов (85%): {(autoPrizePoolMinor / 100).toFixed(2)} RUB</p>
-              <p>
-                1 место: {(first / 100).toFixed(2)} RUB | 2 место: {(second / 100).toFixed(2)} RUB | 3 место:{" "}
-                {(third / 100).toFixed(2)} RUB
+      <div className="sticky top-[7.5rem] z-20 mb-4">
+        <CtaBox
+          primary={{
+            href: canSubmitApplication ? applyHref : `/tournaments/${tournament.id}`,
+            label: canSubmitApplication ? "Подать заявку" : "Приём заявок закрыт",
+          }}
+          secondary={{ href: `/teammates?game=${encodeURIComponent(tournament.game.slug)}`, label: "Найти игроков" }}
+          hint={`Формат ${tournament.teamSize} на ${tournament.teamSize} · ${
+            tournament.entryFeeMinor > 0 ? `взнос ${formatRubFromMinor(tournament.entryFeeMinor)}` : "участие бесплатное"
+          } · свободно ${slotsLeft} мест`}
+        />
+      </div>
+      <GameCoverPanel slug={tournament.game.slug} className="ll-media-zoom" contentClassName="relative p-6">
+        <span className="ll-beam ll-beam--a" aria-hidden />
+        <span className="ll-beam ll-beam--b" aria-hidden />
+        <Kicker>{tournament.game.name}</Kicker>
+        <SplitHeading
+          text={tournament.title}
+          className="mt-2 text-3xl font-black uppercase tracking-[0.1em] text-[#14ffec]"
+        />
+        <Reveal delay={0.2}>
+          <p className="mt-3 max-w-3xl text-zinc-300">{tournament.description ?? "Описание скоро появится."}</p>
+          <div className="ll-meter mt-4 max-w-md">
+            <span style={{ width: `${tournament.maxTeams > 0 ? Math.min(100, Math.round((tournament.teamApplications.length / tournament.maxTeams) * 100)) : 0}%` }} />
+          </div>
+        </Reveal>
+        <StaggerGroup className="mt-4 grid gap-3 text-sm text-zinc-300 md:grid-cols-3" gap={0.09}>
+          <StaggerItem className="h-full border border-[var(--ll-line)] bg-black/35 p-3 transition-colors duration-300 hover:border-[#14ffec]/45">
+            <p className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Кого допускаем</p>
+            <p className="mt-1">
+              {tournament.requiresVerifiedExperience
+                ? "Только игроков с подтверждённым рангом"
+                : "Всех желающих, подтверждать ранг не нужно"}
+            </p>
+            {tournament.requiresVerifiedExperience ? (
+              <Link href="/account/questionnaire" className="mt-2 inline-block text-xs text-[#14ffec]">
+                Как подтвердить ранг
+              </Link>
+            ) : null}
+          </StaggerItem>
+          <StaggerItem className="h-full border border-[var(--ll-line)] bg-black/35 p-3 transition-colors duration-300 hover:border-[#14ffec]/45">
+            <p className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Призовой фонд</p>
+            {tournament.prizeMode === "SPONSOR" ? (
+              <p className="mt-1">{tournament.sponsorPrizeText ?? "Объявим позже"}</p>
+            ) : (
+              <p className="mt-1">
+                Собирается из взносов участников: 85% идёт победителям. Сейчас{" "}
+                {formatRubFromMinor(autoPrizePoolMinor)} — за 1 место {formatRubFromMinor(first)}, за 2 место{" "}
+                {formatRubFromMinor(second)}, за 3 место {formatRubFromMinor(third)}.
               </p>
-            </div>
-          )}
-        </div>
-        <div className="mt-5">
-          {session ? (
-            <>
-              {myRegistration && <p className="text-sm text-[#14ffec]">Статус вашей индивидуальной заявки: {myRegistration.status}</p>}
-              {canSubmitApplication ? (
-                <Link href={`/tournaments/${tournament.id}/apply`} className="button-primary inline-flex">
-                  Подать заявку на отдельной странице
-                </Link>
-              ) : (
-                <p className="text-sm text-zinc-400">Подача заявок закрыта (турнир завершён).</p>
-              )}
-            </>
-          ) : (
-            <p className="text-sm text-zinc-400">Войдите, чтобы подать заявку на участие.</p>
-          )}
-        </div>
-        {canEditBracket ? <TournamentAdminActions tournamentId={tournament.id} status={tournament.status} /> : null}
+            )}
+          </StaggerItem>
+          <StaggerItem className="h-full border border-[var(--ll-line)] bg-black/35 p-3 transition-colors duration-300 hover:border-[#14ffec]/45">
+            <p className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Состав и места</p>
+            <p className="mt-1">
+              {tournament.teamSize === 1
+                ? "Играют по одному"
+                : `Команды по ${tournament.teamSize} ${tournament.teamSize < 5 ? "игрока" : "игроков"}`}{" "}
+              · заявились {tournament.teamApplications.length} из {tournament.maxTeams} ·{" "}
+              {getTournamentStatusLabel(tournament.status)}
+            </p>
+          </StaggerItem>
+        </StaggerGroup>
+        {myRegistration ? (
+          <p className="mt-4 text-sm text-[#14ffec]">
+            Ваша заявка {getApplicationStatusLabel(myRegistration.status)}
+          </p>
+        ) : null}
       </GameCoverPanel>
+
+      {canEditBracket ? (
+        <Frame brackets className="mt-4">
+          <Kicker>Управление</Kicker>
+          <div className="mt-3">
+            <TournamentAdminActions tournamentId={tournament.id} status={tournament.status} />
+          </div>
+        </Frame>
+      ) : null}
 
       {podium ? (
         <TournamentPodium podium={podium} participantAssets={participantAssets} linkableUsernames={linkSet} />
@@ -165,12 +213,12 @@ export default async function TournamentDetailsPage({ params }: { params: Promis
       ) : null}
 
       {(tournament.registrations.length > 0 || tournament.teamApplications.length > 0) && (
-        <section className="surface mt-6 w-full rounded-xl p-6">
+        <section className="ll-frame ll-frame--brackets mt-6 w-full p-6">
           <h2 className="text-lg font-black uppercase tracking-[0.12em] text-[#14ffec]">Участники</h2>
-          <p className="mt-1 text-sm text-zinc-500">Имя ведёт на публичный профиль на сайте (если аккаунт существует).</p>
+          <p className="mt-1 text-sm text-zinc-500">Нажмите на ник, чтобы открыть профиль игрока.</p>
           {tournament.registrations.length > 0 && (
             <div className="mt-4">
-              <h3 className="text-xs uppercase tracking-[0.16em] text-zinc-400">Индивидуальные заявки</h3>
+              <h3 className="text-xs uppercase tracking-[0.16em] text-zinc-400">Заявки от отдельных игроков</h3>
               <ul className="mt-2 flex flex-wrap gap-2 text-sm text-zinc-200">
                 {tournament.registrations.map((reg) => (
                   <li key={reg.id}>
@@ -180,7 +228,7 @@ export default async function TournamentDetailsPage({ params }: { params: Promis
                     >
                       {reg.user.username}
                     </Link>
-                    <span className="ml-1 text-zinc-500">({reg.status})</span>
+                    <span className="ml-1 text-zinc-500">({getApplicationStatusLabel(reg.status)})</span>
                   </li>
                 ))}
               </ul>
@@ -190,10 +238,12 @@ export default async function TournamentDetailsPage({ params }: { params: Promis
             <div className="mt-6 space-y-4">
               <h3 className="text-xs uppercase tracking-[0.16em] text-zinc-400">Команды</h3>
               {tournament.teamApplications.map((app) => (
-                <div key={app.id} className="rounded-lg border border-[#323232] bg-[#212121] p-4">
+                <div key={app.id} className="ll-frame ll-hover-lift rounded-lg p-4">
                   <p className="font-semibold text-zinc-100">
                     {app.teamName}{" "}
-                    <span className="text-xs font-normal uppercase tracking-wider text-zinc-500">({app.status})</span>
+                    <span className="text-xs font-normal uppercase tracking-wider text-zinc-500">
+                      ({getApplicationStatusLabel(app.status)})
+                    </span>
                   </p>
                   <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-zinc-300">
                     {app.members.map((m) => (
@@ -216,13 +266,18 @@ export default async function TournamentDetailsPage({ params }: { params: Promis
       )}
 
       {tournament.status !== "REGISTRATION_OPEN" && (
-        <TournamentBracket
-          format={tournament.format}
-          matches={tournament.matches}
-          canEdit={canEditBracket}
-          participantAssets={participantAssets}
-          linkableUsernames={linkableUsernames}
-        />
+        <div id="bracket">
+          <Hint className="mb-2">
+            Матч подсвечен, пока идёт прямо сейчас. Нажмите на ник, чтобы открыть профиль игрока.
+          </Hint>
+          <TournamentBracket
+            format={tournament.format}
+            matches={tournament.matches}
+            canEdit={canEditBracket}
+            participantAssets={participantAssets}
+            linkableUsernames={linkableUsernames}
+          />
+        </div>
       )}
     </div>
   );

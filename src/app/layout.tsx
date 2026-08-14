@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import Header from "@/components/layout/Header";
 import ScrollBackgroundFx from "@/components/layout/ScrollBackgroundFx";
-import { getBrandLogos, pickBlueBrandLogo } from "@/lib/brand";
+import SiteChrome from "@/components/layout/SiteChrome";
+import MotionProvider from "@/components/motion/MotionProvider";
+import ScrollProgress from "@/components/motion/ScrollProgress";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,26 +18,23 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Lethal Line Esports",
-  description: "Платформа регистрации и проведения киберспортивных турниров.",
+  description:
+    "Онлайн-турниры по CS2, Dota 2 и Valorant: собери команду, играй с соперниками своего уровня и забери призовой фонд в рублях.",
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const logos = await getBrandLogos();
-  const bgLogo = pickBlueBrandLogo(logos);
-
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full bg-[#212121] text-zinc-100">
-        <ScrollBackgroundFx logoSrc={bgLogo?.src ?? null} />
-        <Header />
-        <main className="relative z-10 mx-auto flex w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
+    <html lang="ru" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+      <body className="flex min-h-full flex-col bg-[#141414] text-zinc-100">
+        <ScrollBackgroundFx />
+        <MotionProvider>
+          <ScrollProgress />
+          <SiteChrome>{children}</SiteChrome>
+        </MotionProvider>
       </body>
     </html>
   );

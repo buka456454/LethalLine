@@ -5,6 +5,7 @@ import { requireAuth } from "@/lib/guards";
 import { prisma } from "@/lib/prisma";
 import { teamApplicationSchema } from "@/lib/schemas";
 import { isAllowedTeamSize, requiredTeammates } from "@/lib/tournament";
+import { checkVerifiedExperienceGate } from "@/lib/verification/gate";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -25,18 +26,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (tournament.status !== TournamentStatus.REGISTRATION_OPEN) return fail("Registration is closed", 400);
 
     if (tournament.requiresVerifiedExperience) {
-      const experienceProfile = await prisma.userGameProfile.findUnique({
-        where: {
-          userId_gameId: {
-            userId: session.sub,
-            gameId: tournament.gameId,
-          },
-        },
-        select: { experienceVerificationStatus: true },
-      });
-      if (experienceProfile?.experienceVerificationStatus !== "APPROVED") {
-        return fail("Для этого турнира нужен подтвержденный опыт. Загрузите скриншот в анкете и дождитесь одобрения.", 403);
-      }
+      const gate = await checkVerifiedExperienceGate(session.sub, tournament.gameId);
+      if (!gate.allowed) return fail(gate.message, 403);
     }
 
     const teamSlotsUsed = tournament.teamApplications.length;

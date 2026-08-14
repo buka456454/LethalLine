@@ -1,5 +1,6 @@
 import { ok, fail } from "@/lib/api";
 import { readSession } from "@/lib/auth";
+import { isNotPlayed, NOT_PLAYED_VALUE } from "@/lib/gameQuestionnaireConfig";
 import { prisma } from "@/lib/prisma";
 
 function toNullableTrimmed(value: string | null): string | undefined {
@@ -35,6 +36,8 @@ export async function GET(request: Request) {
           ? {
               gameProfiles: {
                 some: {
+                  // «Нет опыта» не должен считаться совпадением по дисциплине.
+                  NOT: { rankLabel: NOT_PLAYED_VALUE },
                   ...(gameId ? { gameId } : {}),
                   ...(gameSlug ? { game: { slug: gameSlug } } : {}),
                   ...(role ? { primaryRole: { contains: role, mode: "insensitive" } } : {}),
@@ -78,14 +81,16 @@ export async function GET(request: Request) {
         displayName: u.displayName,
         avatarUrl: u.avatarUrl,
         bio: u.bio,
-        gameProfiles: u.gameProfiles.map((p) => ({
-          gameId: p.gameId,
-          game: p.game,
-          mmr: p.mmr,
-          rankLabel: p.rankLabel,
-          hoursPlayed: p.hoursPlayed,
-          primaryRole: p.primaryRole,
-        })),
+        gameProfiles: u.gameProfiles
+          .filter((p) => !isNotPlayed(p.rankLabel))
+          .map((p) => ({
+            gameId: p.gameId,
+            game: p.game,
+            mmr: p.mmr,
+            rankLabel: p.rankLabel,
+            hoursPlayed: p.hoursPlayed,
+            primaryRole: p.primaryRole,
+          })),
       })),
     });
   } catch {

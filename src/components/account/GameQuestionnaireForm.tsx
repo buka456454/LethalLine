@@ -7,10 +7,16 @@ import GameCoverImageStack from "@/components/games/GameCoverImageStack";
 import PublicImage from "@/components/ui/PublicImage";
 import {
   CUSTOM_SENTINEL,
+  MAX_ROLES,
   getGameQuestionnaireUi,
+  isNotPlayed,
   mergeSelectValue,
+  NOT_PLAYED_VALUE,
+  parseRoles,
+  serializeRoles,
   splitSelectValue,
   type GameQuestionnaireUi,
+  type SelectOption,
 } from "@/lib/gameQuestionnaireConfig";
 
 type GameRow = {
@@ -109,6 +115,10 @@ function SelectOrTextRank({
   );
 }
 
+function presetRoleOptions(options: SelectOption[] | undefined) {
+  return (options ?? []).filter((option) => option.value && option.value !== CUSTOM_SENTINEL);
+}
+
 function SelectOrTextRole({
   config,
   value,
@@ -118,10 +128,12 @@ function SelectOrTextRole({
   value: string;
   onChange: (v: string) => void;
 }) {
-  const options = config.options;
-  const split = config.mode === "freeText" ? null : splitSelectValue(value, options);
-  const selectVal = split?.select ?? "";
-  const customVal = split?.custom ?? "";
+  const presets = presetRoleOptions(config.options);
+  const presetValues = new Set(presets.map((option) => option.value));
+  const selected = parseRoles(value);
+  const selectedPresets = selected.filter((role) => presetValues.has(role));
+  const customVal = selected.filter((role) => !presetValues.has(role)).join(", ");
+  const atMax = selected.length >= MAX_ROLES;
 
   if (config.mode === "freeText") {
     return (
@@ -134,39 +146,62 @@ function SelectOrTextRole({
     );
   }
 
-  const showCustom = selectVal === CUSTOM_SENTINEL;
+  const emit = (nextPresets: string[], nextCustom: string) => {
+    onChange(serializeRoles([...nextPresets, nextCustom]));
+  };
+
+  const togglePreset = (role: string) => {
+    if (selectedPresets.includes(role)) {
+      emit(
+        selectedPresets.filter((item) => item !== role),
+        customVal,
+      );
+      return;
+    }
+    if (atMax) return;
+    emit([...selectedPresets, role], customVal);
+  };
 
   return (
     <div className="space-y-2">
-      <select
-        className="input-base w-full"
-        value={selectVal}
-        onChange={(e) => {
-          const v = e.target.value;
-          if (v !== CUSTOM_SENTINEL) {
-            onChange(v);
-          } else {
-            onChange(mergeSelectValue(CUSTOM_SENTINEL, customVal));
-          }
-        }}
-      >
-        {(options ?? []).map((o) => (
-          <option key={o.value || "__empty"} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-      {showCustom && (
+      <p className="text-xs text-zinc-500">Можно выбрать до {MAX_ROLES}</p>
+      <div className="flex flex-wrap gap-2">
+        {presets.map((option) => {
+          const checked = selectedPresets.includes(option.value);
+          const disabled = atMax && !checked;
+          return (
+            <label
+              key={option.value}
+              className={`inline-flex cursor-pointer items-center gap-2 rounded border px-2.5 py-1.5 text-sm transition-colors ${
+                checked
+                  ? "border-[#14ffec]/60 bg-[#14ffec]/10 text-[#14ffec]"
+                  : disabled
+                    ? "cursor-not-allowed border-[#2a2a2a] text-zinc-600"
+                    : "border-[#323232] bg-[#212121] text-zinc-300 hover:border-[#14ffec]/40"
+              }`}
+            >
+              <input
+                type="checkbox"
+                className="sr-only"
+                checked={checked}
+                disabled={disabled}
+                onChange={() => togglePreset(option.value)}
+              />
+              {option.label}
+            </label>
+          );
+        })}
+      </div>
+      <label className="block">
+        <span className="mb-1 block text-xs text-zinc-500">Свой вариант</span>
         <input
           className="input-base"
           value={customVal}
-          onChange={(e) => {
-            const t = e.target.value;
-            onChange(mergeSelectValue(CUSTOM_SENTINEL, t));
-          }}
-          placeholder="Опишите роль"
+          disabled={atMax && customVal.trim() === ""}
+          onChange={(e) => emit(selectedPresets, e.target.value)}
+          placeholder="Если роли нет в списке"
         />
-      )}
+      </label>
     </div>
   );
 }
@@ -226,6 +261,19 @@ export default function GameQuestionnaireForm({ profileHref = "/account" }: { pr
       ...prev,
       [gameId]: { ...prev[gameId], [key]: value },
     }));
+  };
+
+  /** «Нет опыта» обнуляет остальные поля: MMR, часы, роль и скриншот теряют смысл. */
+  const updateRankLabel = (gameId: string, value: string) => {
+    setDraft((prev) => {
+      if (isNotPlayed(value)) {
+        return {
+          ...prev,
+          [gameId]: { mmr: "", rankLabel: NOT_PLAYED_VALUE, hoursPlayed: "", primaryRole: "", experienceProofImageUrl: "" },
+        };
+      }
+      return { ...prev, [gameId]: { ...prev[gameId], rankLabel: value } };
+    });
   };
 
   const parseOptionalInt = (raw: string): number | null | undefined => {
@@ -334,6 +382,7 @@ export default function GameQuestionnaireForm({ profileHref = "/account" }: { pr
         const ui = getGameQuestionnaireUi(row.game.slug);
         const verificationStatus = row.profile?.experienceVerificationStatus ?? "NOT_SUBMITTED";
         const verificationNote = row.profile?.experienceVerificationNote ?? "";
+        const notPlayed = isNotPlayed(d.rankLabel);
 
         return (
           <article
@@ -361,7 +410,15 @@ export default function GameQuestionnaireForm({ profileHref = "/account" }: { pr
                 {!cover && <h2 className="text-lg font-black uppercase tracking-wider text-[#14ffec]">{row.game.name}</h2>}
                 <p className="text-sm leading-relaxed text-zinc-400">{ui.blurb}</p>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  {ui.numeric.show && (
+                  <label className="block sm:col-span-2">
+                    <span className="mb-1 block text-xs uppercase tracking-wider text-zinc-400">{ui.rank.label}</span>
+                    <SelectOrTextRank
+                      config={ui.rank}
+                      value={d.rankLabel}
+                      onChange={(v) => updateRankLabel(row.game.id, v)}
+                    />
+                  </label>
+                  {!notPlayed && ui.numeric.show && (
                     <label className="block sm:col-span-2">
                       <span className="mb-1 block text-xs uppercase tracking-wider text-zinc-400">
                         {ui.numeric.label}
@@ -378,78 +435,95 @@ export default function GameQuestionnaireForm({ profileHref = "/account" }: { pr
                       />
                     </label>
                   )}
-                  <label className="block sm:col-span-2">
-                    <span className="mb-1 block text-xs uppercase tracking-wider text-zinc-400">{ui.rank.label}</span>
-                    <SelectOrTextRank
-                      config={ui.rank}
-                      value={d.rankLabel}
-                      onChange={(v) => updateField(row.game.id, "rankLabel", v)}
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block text-xs uppercase tracking-wider text-zinc-400">{ui.hours.label}</span>
-                    <input
-                      className="input-base"
-                      inputMode="numeric"
-                      value={d.hoursPlayed}
-                      onChange={(e) => updateField(row.game.id, "hoursPlayed", e.target.value)}
-                      placeholder={ui.hours.placeholder}
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block text-xs uppercase tracking-wider text-zinc-400">{ui.role.label}</span>
-                    <SelectOrTextRole
-                      config={ui.role}
-                      value={d.primaryRole}
-                      onChange={(v) => updateField(row.game.id, "primaryRole", v)}
-                    />
-                  </label>
-                </div>
-                <div className="rounded-lg border border-[#323232] bg-[#212121] p-3">
-                  <p className="text-xs uppercase tracking-wider text-zinc-400">Подтверждение опыта</p>
-                  <p className="mt-1 text-sm text-zinc-300">
-                    Статус:{" "}
-                    <span className="text-[#14ffec]">
-                      {verificationStatus === "APPROVED"
-                        ? "подтверждено"
-                        : verificationStatus === "PENDING"
-                          ? "на проверке"
-                          : verificationStatus === "REJECTED"
-                            ? "отклонено"
-                            : "не отправлено"}
-                    </span>
-                  </p>
-                  {verificationStatus === "REJECTED" && verificationNote && (
-                    <p className="mt-2 rounded border border-[#3a3a3a] bg-[#1a1a1a] p-2 text-sm text-zinc-200">
-                      Инструкция: {verificationNote}
-                    </p>
+                  {!notPlayed && (
+                    <label className="block">
+                      <span className="mb-1 block text-xs uppercase tracking-wider text-zinc-400">{ui.hours.label}</span>
+                      <input
+                        className="input-base"
+                        inputMode="numeric"
+                        value={d.hoursPlayed}
+                        onChange={(e) => updateField(row.game.id, "hoursPlayed", e.target.value)}
+                        placeholder={ui.hours.placeholder}
+                      />
+                    </label>
                   )}
-                  {d.experienceProofImageUrl && (
-                    <div className="mt-3">
-                      <PublicImage
-                        src={d.experienceProofImageUrl}
-                        alt={`Скриншот подтверждения опыта для ${row.game.name}`}
-                        width={280}
-                        height={160}
-                        className="rounded border border-[#323232] object-cover"
+                  {!notPlayed && (
+                    <div className="sm:col-span-2">
+                      <span className="mb-1 block text-xs uppercase tracking-wider text-zinc-400">{ui.role.label}</span>
+                      <SelectOrTextRole
+                        config={ui.role}
+                        value={d.primaryRole}
+                        onChange={(v) => updateField(row.game.id, "primaryRole", v)}
                       />
                     </div>
                   )}
-                  <label className="mt-3 block">
-                    <span className="mb-1 block text-xs uppercase tracking-wider text-zinc-400">Скриншот опыта (PNG/JPG/WebP)</span>
-                    <input
-                      type="file"
-                      accept=".png,.jpg,.jpeg,.webp"
-                      className="input-base"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        void uploadProof(row.game.id, file);
-                      }}
-                    />
-                  </label>
-                  {uploadingProofByGame[row.game.id] ? <p className="mt-2 text-xs text-zinc-400">Загрузка скриншота...</p> : null}
                 </div>
+                {notPlayed ? (
+                  <div className="rounded-lg border border-[#323232] bg-[#212121] p-3">
+                    <p className="text-xs uppercase tracking-wider text-zinc-400">Нет опыта</p>
+                    <p className="mt-2 text-sm text-zinc-400">
+                      Отмечено, что в этой дисциплине вы не играли. Ранг, часы и роль не нужны, скриншот тоже — в поиске
+                      напарников по этой игре вас показывать не будем.
+                    </p>
+                    <button
+                      type="button"
+                      className="button-secondary mt-3 text-xs uppercase tracking-[0.12em]"
+                      onClick={() => updateRankLabel(row.game.id, "")}
+                    >
+                      Я играю — заполнить
+                    </button>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-[#323232] bg-[#212121] p-3">
+                    <p className="text-xs uppercase tracking-wider text-zinc-400">Подтверждение опыта</p>
+                    <p className="mt-1 text-sm text-zinc-300">
+                      Статус:{" "}
+                      <span className="text-[#14ffec]">
+                        {verificationStatus === "APPROVED"
+                          ? "подтверждено"
+                          : verificationStatus === "PENDING"
+                            ? "на проверке"
+                            : verificationStatus === "REJECTED"
+                              ? "отклонено"
+                              : "не отправлено"}
+                      </span>
+                    </p>
+                    {verificationStatus === "REJECTED" && verificationNote && (
+                      <p className="mt-2 rounded border border-[#3a3a3a] bg-[#1a1a1a] p-2 text-sm text-zinc-200">
+                        Инструкция: {verificationNote}
+                      </p>
+                    )}
+                    {d.experienceProofImageUrl && (
+                      <div className="mt-3">
+                        <PublicImage
+                          src={d.experienceProofImageUrl}
+                          alt={`Скриншот подтверждения опыта для ${row.game.name}`}
+                          width={280}
+                          height={160}
+                          className="rounded border border-[#323232] object-cover"
+                        />
+                      </div>
+                    )}
+                    <label className="mt-3 block">
+                      <span className="mb-1 block text-xs uppercase tracking-wider text-zinc-400">
+                        Скриншот опыта (PNG/JPG/WebP)
+                      </span>
+                      <input
+                        type="file"
+                        accept=".png,.jpg,.jpeg,.webp"
+                        className="input-base"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          void uploadProof(row.game.id, file);
+                        }}
+                      />
+                    </label>
+                    {uploadingProofByGame[row.game.id] ? (
+                      <p className="mt-2 text-xs text-zinc-400">Загрузка скриншота...</p>
+                    ) : null}
+                  </div>
+                )}
               </div>
             </div>
           </article>

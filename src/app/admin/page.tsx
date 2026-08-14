@@ -1,14 +1,14 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import AdminPanel from "@/components/admin/AdminPanel";
 import { canAccessAdminTabSession, canManageNewsSession, canManageStreamCommentSession, isOwnerAdminSession, readSession } from "@/lib/auth";
-import { getBrandLogos, pickBrandLogo } from "@/lib/brand";
-import PublicImage from "@/components/ui/PublicImage";
+import Kicker from "@/components/ui/Kicker";
+import Reveal from "@/components/motion/Reveal";
+import SplitHeading from "@/components/motion/SplitHeading";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
-  const [session, logos] = await Promise.all([readSession(), getBrandLogos()]);
+  const session = await readSession();
   if (!session) redirect("/sign-in");
 
   const allowed = canAccessAdminTabSession(session);
@@ -18,37 +18,15 @@ export default async function AdminPage() {
   const canManageStreamComment = canManageStreamCommentSession(session);
   const isJournalistOnly = !isOwner && canManageNews && !canManageStreamComment;
 
-  const adminLogo = pickBrandLogo(logos, 1);
-
   return (
     <div className="w-full space-y-4">
-      {adminLogo && (
-        <div className="inline-flex items-center gap-3 rounded-lg border border-[#323232] bg-[#212121] px-3 py-2">
-          <PublicImage src={adminLogo.src} alt="Admin logo" width={30} height={30} className="h-7 w-7 object-contain" />
-          <span className="text-xs uppercase tracking-[0.16em] text-zinc-400">
-            {isJournalistOnly ? "Journalist mode" : "Admin mode"}
-          </span>
-        </div>
-      )}
-      {isOwner && (
-        <div className="flex flex-wrap items-center gap-2">
-          <Link href="/admin/applications" className="button-primary">
-            Центр модерации заявок
-          </Link>
-          <Link
-            href="/admin/tournaments/new"
-            className="rounded-lg border border-[#323232] bg-[#323232] px-4 py-3 text-sm font-semibold text-zinc-200 hover:text-[#14ffec]"
-          >
-            Создать турнир
-          </Link>
-          <Link
-            href="/admin/matches/new"
-            className="rounded-lg border border-[#323232] bg-[#323232] px-4 py-3 text-sm font-semibold text-zinc-200 hover:text-[#14ffec]"
-          >
-            Создать матч
-          </Link>
-        </div>
-      )}
+      <Reveal>
+        <Kicker index="00">{isJournalistOnly ? "journalist" : "admin"}</Kicker>
+        <SplitHeading text="Панель" className="mt-1 text-3xl font-black uppercase tracking-[0.12em] text-[#14ffec]" />
+        <p className="mt-2 text-sm text-zinc-500">
+          Вкладки сверху: обзор, заявки, турнир, матч. Ниже — контент и метрики.
+        </p>
+      </Reveal>
       <AdminPanel isOwner={isOwner} canManageNews={canManageNews} canManageStreamComment={canManageStreamComment} />
     </div>
   );

@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { AnimatePresence, motion } from "framer-motion";
 import PublicImage from "@/components/ui/PublicImage";
-import SaiIcon from "@/components/ui/SaiIcon";
 import UserRoleBadge from "@/components/ui/UserRoleBadge";
+import SplitHeading from "@/components/motion/SplitHeading";
 
 type Game = { id: string; name: string; slug: string };
 type TeammateProfile = {
@@ -144,12 +146,23 @@ export default function TeammatesPage() {
 
   return (
     <div className="w-full space-y-6">
-      <header className="flex items-center gap-3">
-        <SaiIcon name="search" size={20} />
-        <h1 className="text-3xl font-black uppercase tracking-[0.14em] text-[#14ffec]">Поиск напарников</h1>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="ll-kicker">{"//02 игроки"}</p>
+          <SplitHeading
+            text="Собрать команду"
+            className="mt-1 text-3xl font-black uppercase tracking-[0.12em] text-[#14ffec]"
+          />
+          <p className="mt-2 text-sm text-zinc-500">
+            Найдите игроков по игре, рангу и роли, напишите им в чат и позовите в свою команду.
+          </p>
+        </div>
+        <Link href="/tournaments" className="button-secondary text-xs uppercase tracking-[0.12em]">
+          Турнир недели
+        </Link>
       </header>
 
-      <section className="surface rounded-xl p-4">
+      <section className="ll-frame ll-frame--brackets p-4">
         <div className="grid gap-3 md:grid-cols-4">
           <label className="block">
             <span className="mb-1 block text-xs uppercase tracking-wider text-zinc-400">Игра</span>
@@ -186,7 +199,7 @@ export default function TeammatesPage() {
             </button>
             <button
               type="button"
-              className="rounded border border-[#323232] px-4 py-2 text-sm text-zinc-300 hover:text-[#14ffec]"
+              className="button-secondary text-sm"
               onClick={() => void resetFilters()}
               disabled={loading || !hasActiveFilters}
             >
@@ -200,13 +213,27 @@ export default function TeammatesPage() {
       {loading ? (
         <p className="text-sm text-zinc-400">Загрузка пользователей…</p>
       ) : users.length === 0 ? (
-        <p className="text-sm text-zinc-500">Подходящих пользователей пока нет.</p>
+        <div className="ll-frame p-5">
+          <p className="text-sm text-zinc-400">Подходящих игроков нет. Без ранга в анкете вас тоже не найдут.</p>
+          <a href="/account/questionnaire" className="button-primary mt-3 inline-flex text-xs uppercase tracking-[0.12em]">
+            Анкета
+          </a>
+        </div>
       ) : (
-        <ul className="grid gap-4 md:grid-cols-2">
-          {users.map((user) => {
+        <ul className="grid list-none gap-4 md:grid-cols-2">
+          <AnimatePresence initial={false} mode="popLayout">
+          {users.map((user, index) => {
             const initials = (user.displayName || user.username || "U").slice(0, 2).toUpperCase();
             return (
-              <li key={user.id} className="surface rounded-xl p-4">
+              <motion.li
+                key={user.id}
+                layout
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.97 }}
+                transition={{ duration: 0.45, delay: Math.min(index, 8) * 0.04, ease: [0.22, 1, 0.36, 1] }}
+                className="ll-frame ll-frame--brackets ll-hover-lift p-4"
+              >
                 <div className="flex items-start gap-4">
                   <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[#323232] bg-[#323232]">
                     {user.avatarUrl ? (
@@ -230,7 +257,10 @@ export default function TeammatesPage() {
                     <p className="text-xs text-zinc-500">Анкета по играм пока не заполнена.</p>
                   ) : (
                     user.gameProfiles.slice(0, 3).map((p) => (
-                      <div key={`${user.id}-${p.gameId}`} className="rounded border border-[#323232] bg-[#1b1b1b] p-2 text-xs text-zinc-300">
+                      <div
+                        key={`${user.id}-${p.gameId}`}
+                        className="rounded border border-[var(--ll-line)] bg-black/30 p-2 text-xs text-zinc-300 transition-colors duration-300 hover:border-[#14ffec]/40"
+                      >
                         <p className="font-semibold text-[#14ffec]">{p.game.name}</p>
                         <p>
                           Роль: <span className="text-zinc-100">{p.primaryRole || "—"}</span> · Ранг:{" "}
@@ -245,7 +275,7 @@ export default function TeammatesPage() {
                   )}
                 </div>
 
-                <div className="mt-4 flex gap-2">
+                <div className="mt-4 flex flex-wrap gap-2">
                   <button
                     type="button"
                     className="button-primary"
@@ -254,10 +284,14 @@ export default function TeammatesPage() {
                   >
                     {startingChatWith === user.id ? "Открытие…" : "Написать"}
                   </button>
+                  <Link href={`/u/${encodeURIComponent(user.username)}`} className="button-secondary text-sm">
+                    Профиль
+                  </Link>
                 </div>
-              </li>
+              </motion.li>
             );
           })}
+          </AnimatePresence>
         </ul>
       )}
     </div>

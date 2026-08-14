@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { getGameCoverDecor, getGameCoverUrl } from "@/lib/gameAssets";
+import CountUp from "@/components/motion/CountUp";
 
 type UserRole = "USER" | "ADMIN" | "SUPERADMIN" | "JOURNALIST" | "COMMENTATOR";
 
@@ -337,7 +338,7 @@ export default function AdminPanel({ isOwner, canManageNews, canManageStreamComm
   const selectedMatch = (data.matches ?? []).find((m) => m.id === state.matchId) ?? null;
   const newsPublishSection = canManageNews ? (
     <section>
-      <article className="surface rounded-xl p-4">
+      <article className="ll-frame p-4">
         <h2 className="text-lg font-bold">Публикация новости</h2>
         <div className="mt-3 space-y-2">
           <input
@@ -374,24 +375,22 @@ export default function AdminPanel({ isOwner, canManageNews, canManageStreamComm
 
   return (
     <div className="w-full space-y-6">
-      <h1 className="text-3xl font-black uppercase tracking-[0.14em] text-[#14ffec]">
-        {isNewsOnlyRole ? "News Desk" : "Admin Control"}
-      </h1>
-      {message && <p className="rounded border border-[#323232] bg-[#323232] p-2 text-sm text-[#14ffec]">{message}</p>}
+      {message && <p className="ll-frame p-3 text-sm text-[#14ffec]">{message}</p>}
 
       {isNewsOnlyRole && newsPublishSection}
 
       {isOwner && (
-        <section className="grid gap-3 md:grid-cols-3">
-          <Metric title="Пользователи" value={data.metrics?.usersTotal ?? 0} />
-          <Metric title="Активные турниры" value={data.metrics?.activeTournaments ?? 0} />
-          <Metric title="Конверсия заявок (%)" value={data.metrics?.conversionRate ?? 0} />
+        <section className="grid gap-3 md:grid-cols-4">
+          <Metric title="// users" value={data.metrics?.usersTotal ?? 0} />
+          <Metric title="// cups" value={data.metrics?.activeTournaments ?? 0} />
+          <Metric title="// live" value={data.metrics?.matchesLive ?? 0} />
+          <Metric title="// conv %" value={data.metrics?.conversionRate ?? 0} />
         </section>
       )}
 
       {isOwner && (
         <section className="grid gap-4 lg:grid-cols-2">
-          <article className="surface rounded-xl p-4">
+          <article className="ll-frame p-4">
             <h2 className="text-lg font-bold">Создать игру</h2>
             <div className="mt-3 space-y-2">
               <input
@@ -451,7 +450,7 @@ export default function AdminPanel({ isOwner, canManageNews, canManageStreamComm
 
       {canManageStreamComment && (
         <section>
-          <article className="surface rounded-xl p-4">
+          <article className="ll-frame p-4">
             <h2 className="text-lg font-bold">Комментарий к стриму</h2>
             <p className="mt-2 text-sm text-zinc-300">
               Этот текст показывается прямо под плеером на главной странице как официальный комментарий к текущей трансляции.
@@ -471,7 +470,7 @@ export default function AdminPanel({ isOwner, canManageNews, canManageStreamComm
 
       {isOwner && (
         <section className="grid gap-4 lg:grid-cols-2">
-          <article className="surface rounded-xl p-4">
+          <article className="ll-frame p-4">
           <h2 className="text-lg font-bold">Роли и бан пользователей</h2>
           <div className="mt-3 space-y-2">
             <select
@@ -548,7 +547,7 @@ export default function AdminPanel({ isOwner, canManageNews, canManageStreamComm
           </div>
           </article>
 
-          <article className="surface rounded-xl p-4">
+          <article className="ll-frame p-4">
           <h2 className="text-lg font-bold">Управление матчем</h2>
           <div className="mt-3 space-y-2">
             <select
@@ -625,7 +624,7 @@ export default function AdminPanel({ isOwner, canManageNews, canManageStreamComm
       )}
 
       {isOwner && (
-        <section className="surface rounded-xl p-4">
+        <section className="ll-frame p-4">
         <h2 className="text-lg font-bold">Audit Log</h2>
         <div className="mt-3 max-h-72 space-y-2 overflow-auto pr-1 text-sm">
           {(data.logs ?? []).map((log) => (
@@ -647,9 +646,11 @@ export default function AdminPanel({ isOwner, canManageNews, canManageStreamComm
 
 function Metric({ title, value }: { title: string; value: number }) {
   return (
-    <article className="surface rounded-xl p-4">
-      <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">{title}</p>
-      <p className="mt-2 text-3xl font-black text-[#14ffec]">{value}</p>
+    <article className="ll-frame ll-frame--brackets ll-hover-lift p-4">
+      <p className="ll-kicker">{title}</p>
+      <p className="mt-2 text-3xl font-black text-[#14ffec]">
+        <CountUp value={value} />
+      </p>
     </article>
   );
 }

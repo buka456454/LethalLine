@@ -141,7 +141,7 @@ export const userGameProfileEntrySchema = z.object({
   mmr: z.number().int().min(0).max(20_000).nullable().optional(),
   rankLabel: nullableTrimmed(80),
   hoursPlayed: z.number().int().min(0).max(200_000).nullable().optional(),
-  primaryRole: nullableTrimmed(80),
+  primaryRole: nullableTrimmed(240),
   experienceProofImageUrl: imageUrlOrPathSchema.optional(),
 });
 

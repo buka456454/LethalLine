@@ -64,7 +64,7 @@ export default function MatchCreateManager() {
   };
 
   return (
-    <article className="surface rounded-2xl p-6">
+    <article className="ll-frame p-6">
       <h2 className="text-lg font-bold text-zinc-100">Параметры матча</h2>
       <div className="mt-4 space-y-2">
         <select

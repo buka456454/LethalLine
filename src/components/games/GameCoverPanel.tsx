@@ -22,7 +22,7 @@ export default function GameCoverPanel({
 
   return (
     <div
-      className={`relative overflow-hidden rounded-xl border border-[#323232] ${decor.panelBgClass} ${minHeightClassName} ${className}`}
+      className={`relative overflow-hidden rounded-[0.85rem] border border-[var(--ll-line)] ${decor.panelBgClass} ${minHeightClassName} ${className}`}
     >
       <GameCoverImageStack
         slug={slug}

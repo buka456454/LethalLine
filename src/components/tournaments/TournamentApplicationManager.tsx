@@ -1,8 +1,19 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { requiredTeammates } from "@/lib/tournament";
+import { getApplicationStatusLabel } from "@/lib/tournamentStatus";
+
+const PAYMENT_STATUS_LABELS: Record<string, string> = {
+  UNPAID: "не оплачен",
+  PENDING: "оплата обрабатывается",
+  PAID: "оплачен",
+  REFUND_PENDING: "возврат в обработке",
+  REFUNDED: "возвращён",
+  REFUND_FAILED: "возврат не прошёл",
+};
 
 type TeamApplicationPreview = {
   id: string;
@@ -17,8 +28,9 @@ export default function TournamentApplicationManager({
   tournamentId,
   teamSize,
   entryFeeMinor,
-  currency,
+  currency: _currency,
   requiresVerifiedExperience,
+  experienceVerified,
   existingTeamApplication,
   canSubmitApplication,
 }: {
@@ -27,6 +39,7 @@ export default function TournamentApplicationManager({
   entryFeeMinor: number;
   currency: "RUB";
   requiresVerifiedExperience: boolean;
+  experienceVerified: boolean;
   existingTeamApplication: TeamApplicationPreview | null;
   canSubmitApplication: boolean;
 }) {
@@ -42,6 +55,8 @@ export default function TournamentApplicationManager({
 
   const isPaidTournament = entryFeeMinor > 0;
   const paymentStatus = existingTeamApplication?.paymentStatus ?? "UNPAID";
+  const blockedByRank = requiresVerifiedExperience && !experienceVerified;
+  const submitDisabled = loading || !canSubmitApplication || blockedByRank;
 
   const parsedMembers = memberUsernames
     .split(",")
@@ -65,6 +80,10 @@ export default function TournamentApplicationManager({
   };
 
   const submitTeamApplication = async () => {
+    if (blockedByRank) {
+      setMessage("Сначала подтвердите ранг в анкете.");
+      return;
+    }
     if (!canSubmitApplication) {
       setMessage("Турнир завершён: подача заявок недоступна.");
       return;
@@ -107,6 +126,15 @@ export default function TournamentApplicationManager({
 
     setLoading(false);
     setMessage(isSolo ? "Соло-заявка отправлена." : "Командная заявка отправлена.");
+    if (isPaidTournament && agreeOffer) {
+      const pay = await fetch(`/api/tournaments/${tournamentId}/team-apply/payment`, { method: "POST" });
+      const payBody = (await pay.json()) as { paymentUrl?: string | null; error?: string };
+      if (pay.ok && payBody.paymentUrl) {
+        window.location.href = payBody.paymentUrl;
+        return;
+      }
+      if (!pay.ok) setMessage(payBody.error ?? "Заявка создана, но оплату не удалось открыть.");
+    }
     router.refresh();
   };
 
@@ -141,133 +169,101 @@ export default function TournamentApplicationManager({
   };
 
   return (
-    <div className="mt-4 space-y-4">
-      <div className="rounded border border-[#323232] bg-[#323232] p-4">
-        <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-[#14ffec]">
-          {teamSize === 1 ? "Соло-заявка" : `Заявка команды (${teamSize} игрока)`}
-        </h3>
-        <p className="mt-1 text-xs text-zinc-300">
-          {teamSize === 1
-            ? "Для соло-турнира подаётся информация только об одном игроке (ваш аккаунт)."
-            : `Для формата ${teamSize} игрока в команде: укажите название, капитана (ваш аккаунт) и ники сокомандников.`}
+    <div className="ll-frame p-5">
+      <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-[#14ffec]">
+        {teamSize === 1 ? "Заявка на участие" : `Заявка команды (${teamSize} игроков)`}
+      </h3>
+      <p className="mt-2 text-sm text-zinc-400">
+        {isPaidTournament
+          ? `После отправки откроется оплата взноса ${(entryFeeMinor / 100).toFixed(0)} ₽ через Т-Банк.`
+          : "Заявку отправляет капитан, а модерация проверит состав и допустит команду."}
+      </p>
+      {blockedByRank && (
+        <p className="mt-3 border border-[var(--ll-line)] px-3 py-2 text-sm text-zinc-200">
+          Отправить заявку можно после того, как мы подтвердим ваш ранг.{" "}
+          <Link href="/account/questionnaire" className="text-[#14ffec]">
+            Перейти к анкете
+          </Link>
         </p>
-        {isPaidTournament && (
-          <p className="mt-2 text-xs text-zinc-200">
-            Взнос за участие:{" "}
-            <span className="font-semibold text-[#14ffec]">
-              {(entryFeeMinor / 100).toFixed(2)} {currency}
-            </span>
-          </p>
-        )}
-        {requiresVerifiedExperience && (
-          <p className="mt-2 text-xs text-zinc-200">
-            Этот турнир принимает заявки только от игроков с подтвержденным опытом в выбранной игре.
-          </p>
-        )}
-        {!canSubmitApplication && (
-          <p className="mt-2 text-xs text-amber-300">Турнир завершён. Новые заявки и оплата участия отключены.</p>
-        )}
+      )}
+      {!canSubmitApplication && (
+        <p className="mt-2 text-sm text-zinc-500">Приём заявок на этот турнир закрыт.</p>
+      )}
 
-        <div className="mt-3 space-y-3">
-          {teamSize > 1 && (
-            <input
-              value={teamName}
-              onChange={(event) => setTeamName(event.target.value)}
-              className="input-base"
-              placeholder="Название команды"
+      <div className="mt-4 space-y-3">
+        {teamSize > 1 && (
+          <input
+            value={teamName}
+            onChange={(event) => setTeamName(event.target.value)}
+            className="input-base"
+            placeholder="Название команды"
+          />
+        )}
+        {teamSize > 1 && (
+          <>
+            <textarea
+              value={memberUsernames}
+              onChange={(event) => setMemberUsernames(event.target.value)}
+              className="input-base min-h-24"
+              placeholder={`Ники остальных игроков через запятую (${requiredTeammates(teamSize)} шт.)`}
             />
-          )}
-          {teamSize > 1 && (
-            <>
-              <textarea
-                value={memberUsernames}
-                onChange={(event) => setMemberUsernames(event.target.value)}
-                className="input-base min-h-24"
-                placeholder={`Ники сокомандников через запятую (${requiredTeammates(teamSize)} шт.)`}
-              />
-              <p className="text-xs text-zinc-400">
-                Капитан: ваш аккаунт | Указано сокомандников: {parsedMembers.length}/{requiredTeammates(teamSize)}
-                {hasDuplicates ? " | Есть дубликаты" : ""}
-              </p>
-            </>
-          )}
-          {teamSize === 1 && (
-            <div className="rounded border border-[#323232] bg-[#212121] p-3 text-xs text-zinc-300">
-              Игрок: ваш аккаунт (1 участник). Команда не требуется.
-            </div>
-          )}
-          <label className="block">
-            <span className="mb-1 block text-xs uppercase tracking-wider text-zinc-400">Логотип команды (файл)</span>
-            <input
-              type="file"
-              accept=".png,.jpg,.jpeg,.webp,.svg"
-              className="input-base"
-              onChange={async (event) => {
-                const file = event.target.files?.[0];
-                if (!file) return;
-                try {
-                  setMessage("Загрузка логотипа...");
-                  const uploaded = await uploadLogo(file);
-                  setLogoUrl(uploaded);
-                  setMessage("Логотип загружен");
-                } catch (error) {
-                  setMessage(error instanceof Error ? error.message : "Ошибка загрузки логотипа");
-                }
-              }}
-            />
+            <p className="text-xs text-zinc-500">
+              Капитан — вы, вас вписывать не нужно. Указано {parsedMembers.length} из {requiredTeammates(teamSize)}
+              {hasDuplicates ? " · есть повторяющиеся ники" : ""}
+            </p>
+          </>
+        )}
+        <label className="block">
+          <span className="mb-1 block text-xs uppercase tracking-wider text-zinc-500">Логотип (необязательно)</span>
+          <input
+            type="file"
+            accept=".png,.jpg,.jpeg,.webp,.svg"
+            className="input-base"
+            onChange={async (event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              try {
+                setMessage("Загрузка логотипа...");
+                const uploaded = await uploadLogo(file);
+                setLogoUrl(uploaded);
+                setMessage("Логотип загружен");
+              } catch (error) {
+                setMessage(error instanceof Error ? error.message : "Ошибка загрузки логотипа");
+              }
+            }}
+          />
+        </label>
+        {existingTeamApplication && (
+          <p className="text-xs text-zinc-400">
+            Ваша заявка {getApplicationStatusLabel(existingTeamApplication.status)}
+            {isPaidTournament ? ` · взнос ${PAYMENT_STATUS_LABELS[paymentStatus] ?? paymentStatus}` : ""}
+          </p>
+        )}
+        {isPaidTournament && (
+          <label className="flex items-start gap-2 text-xs text-zinc-400">
+            <input type="checkbox" checked={agreeOffer} onChange={(e) => setAgreeOffer(e.target.checked)} className="mt-0.5" />
+            <span>
+              Соглашаюсь с{" "}
+              <Link className="text-[#14ffec] underline" href="/offer">
+                условиями оферты
+              </Link>
+              . Если заявку отклонят, взнос вернётся.
+            </span>
           </label>
-          {logoUrl && (
-            <p className="text-xs text-zinc-300">
-              Загружен логотип: <span className="text-[#14ffec]">{logoUrl}</span>
-            </p>
-          )}
-          {existingTeamApplication && (
-            <p className="text-xs text-zinc-300">
-              Текущий статус вашей командной заявки: <span className="text-[#14ffec]">{existingTeamApplication.status}</span>
-            </p>
-          )}
-          {isPaidTournament && existingTeamApplication && (
-            <p className="text-xs text-zinc-300">
-              Статус оплаты: <span className="text-[#14ffec]">{paymentStatus}</span>
-            </p>
-          )}
-          {teamSize === 1 ? (
-            <button type="button" onClick={submitTeamApplication} disabled={loading || !canSubmitApplication} className="button-primary">
-              {loading ? "Отправка..." : "Подать соло-заявку"}
-            </button>
-          ) : (
-            <button type="button" onClick={submitTeamApplication} disabled={loading || !canSubmitApplication} className="button-primary">
-              {loading ? "Отправка..." : "Отправить заявку команды"}
-            </button>
-          )}
-          {isPaidTournament && paymentStatus !== "PAID" && canSubmitApplication && (
-            <div className="rounded border border-[#323232] bg-[#212121] p-3">
-              <p className="text-xs text-zinc-300">
-                После отправки заявки оплатите участие. Оплата подтверждается автоматически (webhook).
-              </p>
-              <label className="mt-2 flex items-start gap-2 text-xs text-zinc-300">
-                <input
-                  type="checkbox"
-                  checked={agreeOffer}
-                  onChange={(e) => setAgreeOffer(e.target.checked)}
-                  className="mt-0.5"
-                />
-                <span>
-                  Я согласен(на) с <a className="text-[#14ffec] underline" href="/offer">публичной офертой</a>.
-                </span>
-              </label>
-              <button
-                type="button"
-                onClick={initPayment}
-                disabled={loading}
-                className="button-primary mt-3 w-full"
-              >
-                {loading ? "Подготовка оплаты..." : "Оплатить участие"}
-              </button>
-            </div>
-          )}
-          {message && <p className="text-sm text-[#14ffec]">{message}</p>}
-        </div>
+        )}
+        <button
+          type="button"
+          onClick={existingTeamApplication && isPaidTournament && paymentStatus !== "PAID" ? initPayment : submitTeamApplication}
+          disabled={submitDisabled || (isPaidTournament && !agreeOffer && !existingTeamApplication)}
+          className="button-primary w-full"
+        >
+          {loading
+            ? "Обработка..."
+            : isPaidTournament
+              ? `Отправить заявку и оплатить ${(entryFeeMinor / 100).toFixed(0)} ₽`
+              : "Отправить заявку"}
+        </button>
+        {message && <p className="text-sm text-[#14ffec]">{message}</p>}
       </div>
     </div>
   );

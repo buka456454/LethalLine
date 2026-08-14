@@ -1,136 +1,83 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import SaiIcon from "@/components/ui/SaiIcon";
+import Kicker from "@/components/ui/Kicker";
+import Frame from "@/components/ui/Frame";
+import Reveal from "@/components/motion/Reveal";
+import SplitHeading from "@/components/motion/SplitHeading";
+import { StaggerGroup, StaggerItem } from "@/components/motion/Stagger";
 
 export const metadata: Metadata = {
-  title: "Как пользоваться сайтом | Lethal Line Esports",
-  description: "Актуальный гайд по Lethal Line: аккаунт, анкета, чаты, турниры, статусы и участие.",
+  title: "Первые шаги | Lethal Line",
+  description: "Что делать в начале: регистрация, анкета, поиск команды и заявка на турнир.",
 };
 
 export default function GuidePage() {
   return (
-    <div className="w-full space-y-10 pb-8">
-      <header className="relative overflow-hidden rounded-2xl border border-[#0d7377]/35 bg-[linear-gradient(140deg,#181c1c_0%,#141818_50%,#101414_100%)] p-6 md:p-8">
-        <div className="pointer-events-none absolute -right-16 top-0 h-40 w-40 rounded-full bg-[#14ffec]/10 blur-3xl" />
-        <div className="relative">
-          <Link
-            href="/"
-            className="text-xs font-semibold uppercase tracking-[0.14em] text-[#0d7377] transition hover:text-[#14ffec]"
-          >
-            ← На главную
-          </Link>
-          <h1 className="mt-4 text-3xl font-black uppercase tracking-[0.08em] text-[#14ffec] md:text-4xl">
-            Как пользоваться сайтом
-          </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-400">
-            Ниже — актуальный порядок действий: от входа и настройки аккаунта до участия в турнирах и общения в личных чатах.
-            Администраторам доступны расширенные инструменты управления турнирами и статусами.
+    <div className="w-full space-y-6 pb-8">
+      <header>
+        <Kicker index="00">Первые шаги</Kicker>
+        <SplitHeading
+          text="Что делать в начале"
+          className="mt-2 text-3xl font-black uppercase tracking-[0.08em] text-[#14ffec]"
+        />
+        <Reveal delay={0.3}>
+          <p className="mt-3 max-w-2xl text-sm text-zinc-400">
+            Шесть коротких шагов от регистрации до первого матча. Всё нужное собрано в меню под вашим ником в правом
+            верхнем углу: анкета, настройки и профиль.
           </p>
-        </div>
+        </Reveal>
       </header>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <GuideBlock
-          step="01"
-          title="Регистрация и вход"
-          icon="user"
-          items={[
-            "Откройте «Войти в систему» на главной и создайте аккаунт или войдите с существующим email.",
-            "После входа используйте кнопку «Аккаунт» в правом верхнем углу: в выпадающем меню доступны «Профиль» и «Выход».",
-          ]}
-        />
-        <GuideBlock
-          step="02"
-          title="Профиль и анкета по играм"
-          icon="file"
-          items={[
-            "В настройках аккаунта можно загрузить аватар и изменить отображаемые данные.",
-            "Раздел «Игровая анкета»: укажите ранг, роль, часы и опыт по дисциплинам. Для некоторых турниров может требоваться подтверждение опыта.",
-          ]}
-        />
-        <GuideBlock
-          step="03"
-          title="Турниры"
-          icon="calendar"
-          items={[
-            "Страница «Турниры» показывает ближайшее событие и полный список активных/прошедших турниров.",
-            "У турниров есть статусы: «Набор участников», «В процессе», «Подсчёт результатов», «Завершен». Подача заявок доступна только при открытой регистрации.",
-          ]}
-        />
-        <GuideBlock
-          step="04"
-          title="Заявка и ожидание"
-          icon="check"
-          items={[
-            "На странице турнира нажмите «Подать заявку» и заполните данные команды/состава.",
-            "После отправки отслеживайте статус заявки, сетку матчей и результат турнира прямо на странице турнира.",
-          ]}
-        />
-        <GuideBlock
-          step="05"
-          title="Личные чаты"
-          icon="chat"
-          items={[
-            "В разделе «Чаты» диалоги отображаются списком, входящие/исходящие сообщения разделены по сторонам, а новые сообщения помечаются индикатором в меню.",
-            "Окно сообщений работает как отдельный прокручиваемый блок с автопрокруткой к последнему сообщению.",
-          ]}
-        />
-        <GuideBlock
-          step="06"
-          title="Новости и связь"
-          icon="chat"
-          items={[
-            "Анонсы и новости публикуются на главной странице и в каналах связи (Telegram/Kick).",
-            "Для партнёрств и официальных вопросов используйте контакты из блока «Связь» внизу главной страницы.",
-          ]}
-        />
-      </div>
+      <StaggerGroup className="grid gap-3 md:grid-cols-2" gap={0.07}>
+        {[
+          {
+            n: "01",
+            t: "Создайте аккаунт",
+            d: "Нажмите «Регистрация» в шапке сайта. После входа там появится ваш ник с меню.",
+          },
+          {
+            n: "02",
+            t: "Заполните анкету",
+            d: "Ник → «Анкета». Для каждой игры укажите ранг, роль и приложите скриншот. Если в игру вы не играли, выберите «Нет опыта». Ранг нужен, чтобы подобрать вам соперников такого же уровня.",
+          },
+          {
+            n: "03",
+            t: "Выберите турнир",
+            d: "Раздел «Турниры». Подать заявку можно, пока идёт приём заявок — дальше начинаются матчи, затем подсчёт результатов и завершение.",
+          },
+          {
+            n: "04",
+            t: "Подайте заявку",
+            d: "Заявку оформляет капитан: вписывает состав и оплачивает взнос. Если модерация откажет, взнос вернётся по условиям оферты.",
+          },
+          {
+            n: "05",
+            t: "Найдите игроков",
+            d: "Раздел «Игроки» — поиск по игре, рангу и роли. Кнопка «Написать» открывает чат. Точка на пункте «Чаты» значит, что есть непрочитанные сообщения.",
+          },
+          {
+            n: "06",
+            t: "Если остались вопросы",
+            d: "Ссылки на эту страницу, оферту, Telegram и трансляции на Kick есть в подвале любой страницы.",
+          },
+        ].map((b) => (
+          <StaggerItem key={b.n} className="h-full">
+            <Frame brackets hover className="h-full">
+              <Kicker index={b.n}>{b.t}</Kicker>
+              <p className="mt-3 text-sm leading-relaxed text-zinc-400">{b.d}</p>
+            </Frame>
+          </StaggerItem>
+        ))}
+      </StaggerGroup>
 
-      <div className="flex flex-wrap gap-3">
+      <Reveal className="flex flex-wrap gap-3">
         <Link href="/tournaments" className="button-primary">
           К турнирам
         </Link>
-        <Link
-          href="/account/edit"
-          className="rounded-lg border border-[#323232] bg-black/25 px-4 py-3 text-sm font-semibold text-zinc-200 transition hover:border-[#14ffec]/50 hover:text-[#14ffec]"
-        >
-          Настройки аккаунта
+        <Link href="/account/questionnaire" className="button-secondary">
+          Заполнить анкету
         </Link>
-      </div>
+      </Reveal>
     </div>
-  );
-}
-
-function GuideBlock({
-  step,
-  title,
-  icon,
-  items,
-}: {
-  step: string;
-  title: string;
-  icon: "user" | "file" | "calendar" | "check" | "chat";
-  items: string[];
-}) {
-  return (
-    <article className="surface rounded-xl border border-[#323232] p-5 transition hover:border-[#0d7377]/60">
-      <div className="flex items-start gap-4">
-        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-[#0d7377]/45 bg-black/30">
-          <SaiIcon name={icon} size={22} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#0d7377]">{step}</p>
-          <h2 className="mt-1 text-lg font-bold text-zinc-100">{title}</h2>
-          <ul className="mt-3 list-none space-y-2 text-sm leading-relaxed text-zinc-400">
-            {items.map((line, i) => (
-              <li key={i} className="flex gap-2">
-                <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[#14ffec]" aria-hidden />
-                <span>{line}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-    </article>
   );
 }

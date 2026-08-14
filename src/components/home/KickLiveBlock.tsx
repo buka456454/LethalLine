@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import Frame from "@/components/ui/Frame";
+import Kicker from "@/components/ui/Kicker";
 
 function buildKickPlayerSrc(channel: string) {
   const url = new URL(`https://player.kick.com/${encodeURIComponent(channel)}`);
@@ -22,52 +24,47 @@ export default function KickLiveBlock({
   const playerSrc = React.useMemo(() => buildKickPlayerSrc(channel), [channel]);
 
   return (
-    <section className="relative">
-      <div className="mx-auto w-full max-w-5xl">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.22em] text-zinc-300/80">Live</p>
-            <h2 className="mt-2 text-lg font-black uppercase tracking-[0.12em] text-[#14ffec] sm:text-xl">{title}</h2>
+    <Frame pad={false} brackets className="overflow-hidden">
+      <div className="flex items-center justify-between gap-3 px-5 pt-5">
+        <div>
+          <div className="flex items-center gap-3">
+            <Kicker index="03">Прямой эфир</Kicker>
+            <span className="ll-eq" aria-hidden>
+              <span />
+              <span />
+              <span />
+              <span />
+              <span />
+            </span>
           </div>
-          <a
-            href={profileUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-full bg-black/40 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-zinc-200/90 backdrop-blur transition hover:bg-black/55 hover:text-[#53fc18]"
-          >
-            kick.com/{channel}
-          </a>
+          <h2 className="mt-2 text-lg font-black uppercase tracking-[0.1em] text-[#14ffec]">{title}</h2>
         </div>
-        <div className="relative overflow-hidden rounded-2xl bg-black shadow-[0_18px_60px_rgba(0,0,0,0.65)]">
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/25 via-black/35 to-black/70" />
-          <div className="pointer-events-none absolute -inset-20 bg-[radial-gradient(circle_at_35%_25%,rgba(83,252,24,0.12),transparent_55%)]" />
-
-          <div className="relative aspect-video w-full">
-            <iframe
-              className="absolute inset-0 h-full w-full opacity-95"
-              src={playerSrc}
-              allow="autoplay; fullscreen; picture-in-picture"
-              allowFullScreen
-              loading="lazy"
-              referrerPolicy="origin-when-cross-origin"
-              title={`Kick stream ${channel}`}
-            />
-
-            <div className="pointer-events-none absolute inset-0">
-              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#53fc18] to-transparent opacity-40" />
-              <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(255,255,255,0.04),transparent_20%,transparent_80%,rgba(255,255,255,0.03))]" />
-            </div>
-
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 p-4 sm:p-5" />
-          </div>
-        </div>
-        {streamComment && (
-          <article className="mt-3 rounded-xl border border-[#53fc18]/35 bg-[#111616] p-4">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#53fc18]">Комментарий к трансляции</p>
-            <p className="mt-2 text-sm leading-relaxed text-zinc-200">{streamComment}</p>
-          </article>
-        )}
+        <a
+          href={profileUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="ll-underline text-[10px] uppercase tracking-[0.16em] text-zinc-500 hover:text-[#14ffec]"
+        >
+          kick.com/{channel} ↗
+        </a>
       </div>
-    </section>
+      <div className="relative mt-4 aspect-video w-full bg-black">
+        <iframe
+          className="absolute inset-0 h-full w-full"
+          src={playerSrc}
+          allow="autoplay; fullscreen; picture-in-picture"
+          allowFullScreen
+          loading="lazy"
+          referrerPolicy="origin-when-cross-origin"
+          title={`Kick stream ${channel}`}
+        />
+      </div>
+      {streamComment ? (
+        <p className="flex items-start gap-3 border-t border-[var(--ll-line)] px-5 py-3 text-sm text-zinc-300">
+          <span className="ll-dot-live mt-1.5 shrink-0" aria-hidden />
+          {streamComment}
+        </p>
+      ) : null}
+    </Frame>
   );
 }

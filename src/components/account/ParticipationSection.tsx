@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { getApplicationStatusLabel } from "@/lib/tournamentStatus";
 
 type TournamentRef = {
   id: string;
@@ -67,7 +68,9 @@ export default function ParticipationSection() {
   return (
     <section className="surface mt-5 rounded-xl p-6">
       <h2 className="text-xl font-black uppercase tracking-[0.12em] text-[#14ffec]">Участие в турнирах</h2>
-      <p className="mt-2 text-sm text-zinc-400">Командные заявки, в которые вы добавлены капитаном или участвуете как капитан.</p>
+      <p className="mt-2 text-sm text-zinc-400">
+        Здесь собраны заявки, которые вы подали сами, и те, в которые вас добавил капитан команды.
+      </p>
 
       {loading && <p className="mt-4 text-sm text-zinc-400">Загрузка данных...</p>}
 
@@ -103,7 +106,7 @@ export default function ParticipationSection() {
                 <div key={application.id} className="rounded border border-[#323232] bg-[#212121] p-2 text-xs text-zinc-300">
                   <p className="font-semibold text-zinc-100">{application.teamName}</p>
                   <p>{application.tournament.title}</p>
-                  <p className="text-[#14ffec]">{application.status}</p>
+                  <p className="text-[#14ffec]">Заявка {getApplicationStatusLabel(application.status)}</p>
                   <Link href={`/tournaments/${application.tournament.id}`} className="mt-1 inline-block text-[#14ffec]">
                     Перейти к турниру
                   </Link>
@@ -121,7 +124,7 @@ export default function ParticipationSection() {
                   <p className="font-semibold text-zinc-100">{application.teamName}</p>
                   <p>Капитан: {application.captain.username}</p>
                   <p>{application.tournament.title}</p>
-                  <p className="text-[#14ffec]">{application.status}</p>
+                  <p className="text-[#14ffec]">Заявка {getApplicationStatusLabel(application.status)}</p>
                   <Link href={`/tournaments/${application.tournament.id}`} className="mt-1 inline-block text-[#14ffec]">
                     Перейти к турниру
                   </Link>

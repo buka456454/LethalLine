@@ -50,7 +50,7 @@ export default async function AccountEditPage() {
           phoneVerified: user.phone == null || user.phoneVerifiedAt != null,
         }}
       />
-      <section className="surface w-full rounded-xl p-6">
+      <section className="ll-frame w-full p-6">
         <h2 className="text-lg font-black uppercase tracking-[0.12em] text-[#14ffec]">Игровой профиль</h2>
         <p className="mt-2 text-sm text-zinc-400">Анкета отображается на публичной странице профиля.</p>
         <Link href="/account/questionnaire" className="button-primary mt-4 inline-flex">

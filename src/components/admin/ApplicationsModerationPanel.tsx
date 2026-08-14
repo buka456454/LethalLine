@@ -182,7 +182,7 @@ export default function ApplicationsModerationPanel() {
       </div>
 
       <section className="grid gap-4 lg:grid-cols-3">
-        <article className="surface rounded-xl p-4">
+        <article className="ll-frame p-4">
           <h2 className="text-lg font-bold text-zinc-100">Индивидуальные заявки</h2>
           <div className="mt-3 space-y-2">
             {filteredRegistrations.length === 0 && <p className="text-sm text-zinc-400">Заявок не найдено.</p>}
@@ -211,7 +211,7 @@ export default function ApplicationsModerationPanel() {
           </div>
         </article>
 
-        <article className="surface rounded-xl p-4">
+        <article className="ll-frame p-4">
           <h2 className="text-lg font-bold text-zinc-100">Командные заявки</h2>
           <div className="mt-3 space-y-2">
             {filteredTeamApplications.length === 0 && <p className="text-sm text-zinc-400">Заявок не найдено.</p>}
@@ -253,7 +253,7 @@ export default function ApplicationsModerationPanel() {
           </div>
         </article>
 
-        <article className="surface rounded-xl p-4">
+        <article className="ll-frame p-4">
           <h2 className="text-lg font-bold text-zinc-100">Подтверждение опыта</h2>
           <div className="mt-3 space-y-2">
             {filteredExperienceVerifications.length === 0 && <p className="text-sm text-zinc-400">Заявок не найдено.</p>}

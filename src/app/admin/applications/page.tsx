@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import ApplicationsModerationPanel from "@/components/admin/ApplicationsModerationPanel";
 import { isOwnerAdminSession, readSession } from "@/lib/auth";
+import Kicker from "@/components/ui/Kicker";
 
 export const dynamic = "force-dynamic";
 
@@ -12,10 +12,9 @@ export default async function AdminApplicationsPage() {
 
   return (
     <div className="w-full space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <Link href="/admin" className="rounded-lg border border-[#323232] bg-[#212121] px-4 py-2 text-sm text-zinc-200 hover:text-[#14ffec]">
-          Назад в админку
-        </Link>
+      <div>
+        <Kicker index="01">заявки</Kicker>
+        <h1 className="mt-1 text-3xl font-black uppercase tracking-[0.1em] text-[#14ffec]">Модерация</h1>
       </div>
       <ApplicationsModerationPanel />
     </div>

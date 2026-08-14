@@ -68,7 +68,7 @@ export default function QuestionnaireNudge({ enabled }: Props) {
             </button>
           </div>
           <p className="mt-2 text-sm leading-snug text-zinc-300">
-            Укажите уровень игры по дисциплинам — так вас лучше узнают в турнирах и в профиле.
+            Укажите свой ранг в играх — так вас найдут другие игроки, а мы подберём соперников вашего уровня.
           </p>
           <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             <Link href="/account/questionnaire" className="button-primary inline-flex justify-center text-center text-sm">

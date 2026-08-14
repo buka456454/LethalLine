@@ -27,18 +27,8 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
     }
 
     if (tournament.requiresVerifiedExperience) {
-      const experienceProfile = await prisma.userGameProfile.findUnique({
-        where: {
-          userId_gameId: {
-            userId: session.sub,
-            gameId: tournament.gameId,
-          },
-        },
-        select: { experienceVerificationStatus: true },
-      });
-      if (experienceProfile?.experienceVerificationStatus !== "APPROVED") {
-        return fail("Для этого турнира нужен подтвержденный опыт. Загрузите скриншот в анкете и дождитесь одобрения.", 403);
-      }
+      const gate = await checkVerifiedExperienceGate(session.sub, tournament.gameId);
+      if (!gate.allowed) return fail(gate.message, 403);
     }
 
     if (tournament.registrations.length >= tournament.maxParticipants) {

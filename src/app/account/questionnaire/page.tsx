@@ -24,7 +24,8 @@ export default async function QuestionnairePage() {
         <div>
           <h1 className="text-2xl font-black uppercase tracking-[0.12em] text-[#14ffec]">Игровая анкета</h1>
           <p className="mt-2 max-w-2xl text-sm text-zinc-400">
-            Укажите уровень игры по дисциплинам сайта: MMR или рейтинг, звание, часы и предпочитаемую роль. Данные видны в вашем публичном профиле.
+            Расскажите, во что вы играете: ранг, роли (можно несколько) и скриншот для подтверждения. По этим данным вас находят другие
+            игроки, а мы подбираем соперников вашего уровня. Если в игру вы не играли — выберите «Нет опыта».
           </p>
         </div>
         <div className="flex flex-col items-end gap-2 text-sm">
