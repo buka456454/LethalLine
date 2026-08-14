@@ -1,5 +1,6 @@
 import { fail, ok } from "@/lib/api";
 import { requireAuth } from "@/lib/guards";
+import { rateLimit } from "@/lib/rate-limit";
 import { saveUploadedImage } from "@/lib/uploads/saveUploadedImage";
 
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -9,7 +10,9 @@ const BLOCKED_TYPES = new Set(["image/svg+xml", "text/html", "application/xhtml+
 
 export async function POST(request: Request) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
+    const limit = rateLimit(`upload-avatar:${session.sub}`, 20, 60 * 60_000);
+    if (!limit.allowed) return fail("Слишком много загрузок. Попробуйте позже.", 429);
     const formData = await request.formData();
     const file = formData.get("avatar");
 

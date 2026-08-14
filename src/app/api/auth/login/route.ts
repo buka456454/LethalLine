@@ -3,9 +3,10 @@ import { fail, ok } from "@/lib/api";
 import { sessionPayloadFromUser, setSessionCookie, signSession, verifyPassword } from "@/lib/auth";
 import { loginSchema } from "@/lib/schemas";
 import { rateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/security/clientIp";
 
 export async function POST(request: Request) {
-  const ip = request.headers.get("x-forwarded-for") ?? "local";
+  const ip = getClientIp(request);
   const limit = rateLimit(`login:${ip}`, 8, 60_000);
   if (!limit.allowed) return fail("Too many requests", 429);
 

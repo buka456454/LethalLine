@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
     "www.lethalline.ru",
     "*.lethalline.ru",
   ],
+  poweredByHeader: false,
   images: {
     dangerouslyAllowSVG: true,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",

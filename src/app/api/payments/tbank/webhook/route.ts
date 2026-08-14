@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { fail } from "@/lib/api";
 import { PaymentProvider, PaymentStatus, Prisma, Role } from "@prisma/client";
 import { getTBankConfigFromEnv, type TBankNotificationPayment, verifyTBankNotificationToken } from "@/lib/payments/tbank";
+import { rateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/security/clientIp";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +14,10 @@ function normalizeSuccess(value: unknown) {
 }
 
 export async function POST(request: Request) {
+  const ip = getClientIp(request);
+  const limit = rateLimit(`tbank-webhook:${ip}`, 120, 60_000);
+  if (!limit.allowed) return fail("Too many requests", 429);
+
   const config = getTBankConfigFromEnv();
   const body = (await request.json()) as TBankNotificationPayment;
 

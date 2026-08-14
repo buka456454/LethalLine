@@ -73,6 +73,11 @@ function getJwtSecret() {
   if (!secret) {
     throw new Error("JWT_SECRET is not configured");
   }
+  if (process.env.NODE_ENV === "production") {
+    if (secret.length < 32 || secret === "change-this-in-production") {
+      throw new Error("JWT_SECRET must be a strong random value (min 32 chars) in production");
+    }
+  }
   return new TextEncoder().encode(secret);
 }
 
@@ -136,6 +141,7 @@ export async function setSessionCookie(token: string) {
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: SESSION_TTL_SECONDS,
+    // Не отдаём cookie скриптам; path=/ только для нашего сайта.
   });
 }
 

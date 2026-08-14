@@ -3,6 +3,7 @@ import { stat } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { fail } from "@/lib/api";
+import { readSession } from "@/lib/auth";
 import { isSafeUploadBasename } from "@/lib/uploads/fileName";
 import { UPLOAD_KINDS, getLegacyPublicUploadsRoot, getUploadStorageRoot, type UploadKind } from "@/lib/uploads/paths";
 
@@ -21,8 +22,8 @@ function isUploadKind(s: string): s is UploadKind {
 export const runtime = "nodejs";
 
 /**
- * Публичная раздача /uploads/avatars/* и /uploads/team-logos/* из storage/uploads.
- * Файлы в public/uploads по-прежнему отдаёт Next как статику, если лежат там (легаси).
+ * Публичная раздача /uploads/... из storage/uploads.
+ * experience-proofs — только для авторизованных (скриншоты аккаунтов).
  */
 export async function GET(_request: Request, context: { params: Promise<{ path?: string[] }> }) {
   const { path: segments } = await context.params;
@@ -35,8 +36,20 @@ export async function GET(_request: Request, context: { params: Promise<{ path?:
     return fail("Not found", 404);
   }
 
-  const storagePath = path.join(getUploadStorageRoot(), kind, basename);
-  const legacyPath = path.join(getLegacyPublicUploadsRoot(), kind, basename);
+  if (kind === "experience-proofs") {
+    const session = await readSession();
+    if (!session) return fail("Unauthorized", 401);
+  }
+
+  const storageRoot = path.resolve(getUploadStorageRoot());
+  const legacyRoot = path.resolve(getLegacyPublicUploadsRoot());
+  const storagePath = path.resolve(storageRoot, kind, basename);
+  const legacyPath = path.resolve(legacyRoot, kind, basename);
+
+  // Defense-in-depth: basename уже whitelist, но путь не должен выйти из корня.
+  if (!storagePath.startsWith(storageRoot + path.sep) || !legacyPath.startsWith(legacyRoot + path.sep)) {
+    return fail("Not found", 404);
+  }
 
   let filePath = storagePath;
   try {
@@ -52,6 +65,7 @@ export async function GET(_request: Request, context: { params: Promise<{ path?:
 
   const ext = path.extname(basename);
   const contentType = extMime(ext);
+  const privateProof = kind === "experience-proofs";
 
   const stream = createReadStream(filePath);
   const webStream = Readable.toWeb(stream) as ReadableStream<Uint8Array>;
@@ -60,8 +74,9 @@ export async function GET(_request: Request, context: { params: Promise<{ path?:
     status: 200,
     headers: {
       "Content-Type": contentType,
-      "Cache-Control": "public, max-age=31536000, immutable",
+      "Cache-Control": privateProof ? "private, no-store" : "public, max-age=31536000, immutable",
       "X-Content-Type-Options": "nosniff",
+      ...(privateProof ? { "Content-Disposition": "inline" } : {}),
     },
   });
 }

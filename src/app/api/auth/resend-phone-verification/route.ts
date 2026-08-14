@@ -3,10 +3,11 @@ import { readSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { issuePhoneVerification, userMessageForIssueResult } from "@/lib/phoneVerification";
 import { rateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/security/clientIp";
 
 export async function POST(request: Request) {
   try {
-    const ip = request.headers.get("x-forwarded-for") ?? "local";
+    const ip = getClientIp(request);
     const limit = rateLimit(`resend-phone-verify:${ip}`, 4, 60_000);
     if (!limit.allowed) return fail("Слишком много запросов", 429);
 

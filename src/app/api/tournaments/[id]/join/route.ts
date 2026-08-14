@@ -2,10 +2,14 @@ import { prisma } from "@/lib/prisma";
 import { fail, ok } from "@/lib/api";
 import { requireAuth } from "@/lib/guards";
 import { RegistrationStatus, TournamentStatus } from "@prisma/client";
+import { rateLimit } from "@/lib/rate-limit";
+import { checkVerifiedExperienceGate } from "@/lib/verification/gate";
 
 export async function POST(_: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireAuth();
+    const limit = rateLimit(`tournament-join:${session.sub}`, 20, 10 * 60_000);
+    if (!limit.allowed) return fail("Слишком много попыток. Попробуйте позже.", 429);
     const { id } = await context.params;
 
     const tournament = await prisma.tournament.findUnique({

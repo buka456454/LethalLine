@@ -2,6 +2,7 @@ import { fail, ok } from "@/lib/api";
 import { readSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { publishChatEvents } from "@/lib/chatRealtime";
+import { rateLimit } from "@/lib/rate-limit";
 
 const MAX_MESSAGE_LEN = 1200;
 
@@ -56,6 +57,9 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const session = await readSession();
   if (!session) return fail("Unauthorized", 401);
+
+  const limit = rateLimit(`chat-post:${session.sub}`, 40, 60_000);
+  if (!limit.allowed) return fail("Слишком много сообщений. Подождите немного.", 429);
 
   let body: unknown;
   try {

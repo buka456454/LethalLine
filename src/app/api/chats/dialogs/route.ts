@@ -1,6 +1,7 @@
 import { fail, ok } from "@/lib/api";
 import { readSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { rateLimit } from "@/lib/rate-limit";
 
 function normalizePair(leftId: string, rightId: string) {
   return leftId < rightId ? [leftId, rightId] as const : [rightId, leftId] as const;
@@ -63,6 +64,9 @@ export async function POST(request: Request) {
   try {
     const session = await readSession();
     if (!session) return fail("Unauthorized", 401);
+
+    const limit = rateLimit(`chat-dialog:${session.sub}`, 30, 10 * 60_000);
+    if (!limit.allowed) return fail("Слишком много запросов. Попробуйте позже.", 429);
 
     let body: unknown;
     try {

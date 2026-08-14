@@ -2,6 +2,7 @@ import { fail, ok } from "@/lib/api";
 import { hashPassword } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { rateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/security/clientIp";
 import { z } from "zod";
 
 const payloadSchema = z.object({
@@ -10,7 +11,7 @@ const payloadSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const ip = request.headers.get("x-forwarded-for") ?? "local";
+  const ip = getClientIp(request);
   const limit = rateLimit(`reset-password:${ip}`, 4, 60_000);
   if (!limit.allowed) return fail("Too many requests", 429);
 
