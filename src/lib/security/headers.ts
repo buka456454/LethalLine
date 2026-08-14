@@ -22,6 +22,8 @@ export function applySecurityHeaders(headers: Headers, opts?: { isProduction?: b
     "font-src 'self' data:",
     "connect-src 'self' https: wss:",
     "media-src 'self' https: blob:",
+    // Kick embed (player.kick.com); без frame-src iframe падает в default-src 'self'
+    "frame-src 'self' https://player.kick.com https://kick.com",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
