@@ -1,6 +1,7 @@
 import { ok, fail } from "@/lib/api";
 import { readSession } from "@/lib/auth";
 import { isNotPlayed, NOT_PLAYED_VALUE } from "@/lib/gameQuestionnaireConfig";
+import { getFriendRelation, type FriendRelation } from "@/lib/friends";
 import { prisma } from "@/lib/prisma";
 
 function toNullableTrimmed(value: string | null): string | undefined {
@@ -36,7 +37,6 @@ export async function GET(request: Request) {
           ? {
               gameProfiles: {
                 some: {
-                  // «Нет опыта» не должен считаться совпадением по дисциплине.
                   NOT: { rankLabel: NOT_PLAYED_VALUE },
                   ...(gameId ? { gameId } : {}),
                   ...(gameSlug ? { game: { slug: gameSlug } } : {}),
@@ -73,6 +73,15 @@ export async function GET(request: Request) {
       take,
     });
 
+    const relations = new Map<string, FriendRelation>();
+    if (session && users.length > 0) {
+      await Promise.all(
+        users.map(async (u) => {
+          relations.set(u.id, await getFriendRelation(session.sub, u.id));
+        }),
+      );
+    }
+
     return ok({
       users: users.map((u) => ({
         id: u.id,
@@ -81,6 +90,7 @@ export async function GET(request: Request) {
         displayName: u.displayName,
         avatarUrl: u.avatarUrl,
         bio: u.bio,
+        friendRelation: relations.get(u.id) ?? { kind: "none" as const },
         gameProfiles: u.gameProfiles
           .filter((p) => !isNotPlayed(p.rankLabel))
           .map((p) => ({

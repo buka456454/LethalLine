@@ -5,9 +5,11 @@ import { loadPublicProfileActivity } from "@/lib/publicProfileActivity";
 import { prisma } from "@/lib/prisma";
 import { getTournamentStatusLabel } from "@/lib/tournamentStatus";
 import { isNotPlayed } from "@/lib/gameQuestionnaireConfig";
+import { getFriendRelation } from "@/lib/friends";
 import PublicImage from "@/components/ui/PublicImage";
 import UserRoleBadge from "@/components/ui/UserRoleBadge";
 import StartChatButton from "@/components/ui/StartChatButton";
+import FriendActionButton from "@/components/friends/FriendActionButton";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +72,8 @@ export default async function PublicUserProfilePage({ params }: { params: Promis
 
   const isOwner = session?.sub === user.id;
   const activity = await loadPublicProfileActivity(user.id, user.username);
+  const friendRelation =
+    session && !isOwner ? await getFriendRelation(session.sub, user.id) : null;
 
   const hasAnyStat = (p: (typeof user.gameProfiles)[number]) =>
     !isNotPlayed(p.rankLabel) &&
@@ -119,11 +123,24 @@ export default async function PublicUserProfilePage({ params }: { params: Promis
                 <Link href="/account/questionnaire" className="button-secondary inline-flex">
                   Анкета
                 </Link>
+                <Link href="/friends" className="button-ghost inline-flex">
+                  Друзья
+                </Link>
               </div>
             )}
             {!isOwner && session ? (
-              <div className="mt-4">
-                <StartChatButton peerUserId={user.id} />
+              <div className="mt-4 flex flex-wrap items-start gap-3">
+                {friendRelation?.kind === "incoming" ? (
+                  <>
+                    <FriendActionButton peerUserId={user.id} initial={friendRelation} />
+                    <StartChatButton peerUserId={user.id} className="button-secondary" />
+                  </>
+                ) : (
+                  <>
+                    <StartChatButton peerUserId={user.id} />
+                    <FriendActionButton peerUserId={user.id} initial={friendRelation ?? { kind: "none" }} />
+                  </>
+                )}
               </div>
             ) : null}
             {user.bio && <p className="mt-4 max-w-2xl text-sm leading-relaxed text-zinc-200">{user.bio}</p>}

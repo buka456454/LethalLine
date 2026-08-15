@@ -1,8 +1,10 @@
-import { TournamentStatus } from "@prisma/client";
+import { FriendshipStatus, TournamentStatus } from "@prisma/client";
 import { fail, ok } from "@/lib/api";
 import { writeAuditLog } from "@/lib/audit";
+import { getFriendshipBetween } from "@/lib/friends";
 import { requireAuth } from "@/lib/guards";
 import { prisma } from "@/lib/prisma";
+import { rateLimit } from "@/lib/rate-limit";
 import { teamApplicationSchema } from "@/lib/schemas";
 import { isAllowedTeamSize, requiredTeammates } from "@/lib/tournament";
 import { checkVerifiedExperienceGate } from "@/lib/verification/gate";
@@ -10,6 +12,8 @@ import { checkVerifiedExperienceGate } from "@/lib/verification/gate";
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireAuth();
+    const limit = rateLimit(`team-apply:${session.sub}`, 12, 10 * 60_000);
+    if (!limit.allowed) return fail("Слишком много заявок. Попробуйте позже.", 429);
     const { id } = await context.params;
     const parsed = teamApplicationSchema.safeParse(await request.json());
     if (!parsed.success) return fail("Invalid team application payload", 422);
@@ -44,53 +48,75 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     if (!isAllowedTeamSize(tournament.teamSize)) return fail("Unsupported team size", 400);
 
+    const isSolo = tournament.teamSize === 1;
     const required = requiredTeammates(tournament.teamSize);
     if (required > 0 && uniqueUsernames.length !== required) {
       return fail(`Expected ${required} teammates for this tournament`, 422);
     }
-    if (tournament.teamSize === 1 && uniqueUsernames.length > 0) {
+    if (isSolo && uniqueUsernames.length > 0) {
       return fail("Solo tournament accepts only one player", 422);
     }
 
-    const usernamesWithCaptain = captain
-      ? Array.from(new Set([captain.username, ...uniqueUsernames]))
-      : uniqueUsernames;
+    if (uniqueUsernames.some((name) => name.toLowerCase() === captain.username.toLowerCase())) {
+      return fail("Нельзя добавить капитана в список тиммейтов повторно", 422);
+    }
 
     const linkedUsers = await prisma.user.findMany({
       where: {
-        OR: usernamesWithCaptain.map((username) => ({
+        OR: uniqueUsernames.map((username) => ({
           username: { equals: username, mode: "insensitive" as const },
         })),
       },
-      select: { id: true, username: true },
+      select: { id: true, username: true, isBanned: true },
     });
 
+    if (!isSolo) {
+      if (linkedUsers.length !== uniqueUsernames.length) {
+        return fail("Один или несколько ников не найдены", 404);
+      }
+      if (linkedUsers.some((user) => user.isBanned)) {
+        return fail("Нельзя добавить заблокированного игрока", 403);
+      }
+
+      for (const teammate of linkedUsers) {
+        const friendship = await getFriendshipBetween(session.sub, teammate.id);
+        if (!friendship || friendship.status !== FriendshipStatus.ACCEPTED) {
+          return fail("В команду можно добавить только друзей", 403);
+        }
+      }
+    }
+
+    const usernamesWithCaptain = Array.from(new Set([captain.username, ...uniqueUsernames]));
     const linkedMap = new Map(linkedUsers.map((user) => [user.username.toLowerCase(), user.id]));
+    linkedMap.set(captain.username.toLowerCase(), session.sub);
+
+    // Соло никогда не хранит логотип команды — в сетке берём аватар капитана.
+    const teamLogoUrl = isSolo ? null : parsed.data.teamLogoUrl || null;
 
     const application = await prisma.teamApplication.upsert({
       where: { captainId_tournamentId: { captainId: session.sub, tournamentId: id } },
       create: {
         captainId: session.sub,
         tournamentId: id,
-        teamName: tournament.teamSize === 1 ? `${captain.username} (соло)` : parsed.data.teamName,
-        teamLogoUrl: parsed.data.teamLogoUrl || null,
+        teamName: isSolo ? `${captain.username} (соло)` : parsed.data.teamName,
+        teamLogoUrl,
         members: {
           create: usernamesWithCaptain.map((username) => ({
             username,
-            isCaptain: captain ? username.toLowerCase() === captain.username.toLowerCase() : false,
+            isCaptain: username.toLowerCase() === captain.username.toLowerCase(),
             linkedUserId: linkedMap.get(username.toLowerCase()) ?? null,
           })),
         },
       },
       update: {
-        teamName: tournament.teamSize === 1 ? `${captain.username} (соло)` : parsed.data.teamName,
-        teamLogoUrl: parsed.data.teamLogoUrl || null,
+        teamName: isSolo ? `${captain.username} (соло)` : parsed.data.teamName,
+        teamLogoUrl,
         status: "PENDING",
         members: {
           deleteMany: {},
           create: usernamesWithCaptain.map((username) => ({
             username,
-            isCaptain: captain ? username.toLowerCase() === captain.username.toLowerCase() : false,
+            isCaptain: username.toLowerCase() === captain.username.toLowerCase(),
             linkedUserId: linkedMap.get(username.toLowerCase()) ?? null,
           })),
         },

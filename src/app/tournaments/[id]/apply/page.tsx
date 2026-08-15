@@ -68,6 +68,12 @@ export default async function TournamentApplyPage({ params }: { params: Promise<
   });
   const experienceVerified = gameProfile?.experienceVerificationStatus === "APPROVED";
 
+  const me = await prisma.user.findUnique({
+    where: { id: session.sub },
+    select: { username: true, displayName: true, avatarUrl: true },
+  });
+  if (!me) redirect("/sign-in");
+
   return (
     <div className="w-full space-y-4">
       <Link href={`/tournaments/${tournament.id}`} className="button-ghost inline-flex text-xs uppercase tracking-[0.12em]">
@@ -103,6 +109,11 @@ export default async function TournamentApplyPage({ params }: { params: Promise<
         experienceVerified={experienceVerified}
         existingTeamApplication={myTeamApplication}
         canSubmitApplication={canSubmitApplication}
+        captain={{
+          username: me.username,
+          displayName: me.displayName,
+          avatarUrl: me.avatarUrl,
+        }}
       />
     </div>
   );

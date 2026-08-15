@@ -10,9 +10,11 @@ const panelTransition = { duration: 0.22, ease: [0.22, 1, 0.36, 1] as const };
 export default function AccountMenu({
   username,
   canAdmin,
+  pendingFriendRequests = 0,
 }: {
   username: string;
   canAdmin: boolean;
+  pendingFriendRequests?: number;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -66,9 +68,10 @@ export default function AccountMenu({
           cancelClose();
           setOpen((value) => !value);
         }}
-        className="inline-flex cursor-pointer select-none items-center gap-2 rounded-sm border border-[var(--ll-line)] px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#14ffec] transition-colors duration-200 hover:border-[#14ffec] hover:bg-[#14ffec]/8"
+        className="relative inline-flex cursor-pointer select-none items-center gap-2 rounded-sm border border-[var(--ll-line)] px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#14ffec] transition-colors duration-200 hover:border-[#14ffec] hover:bg-[#14ffec]/8"
       >
         {username}
+        {pendingFriendRequests > 0 ? <span className="ll-dot-live absolute right-1 top-1" aria-hidden /> : null}
       </button>
       <AnimatePresence>
         {open ? (
@@ -90,6 +93,17 @@ export default function AccountMenu({
                 onClick={close}
               >
                 Профиль
+              </Link>
+              <Link
+                href="/friends"
+                role="menuitem"
+                className="relative block px-3 py-2 text-sm text-zinc-200 hover:text-[#14ffec]"
+                onClick={close}
+              >
+                Друзья
+                {pendingFriendRequests > 0 ? (
+                  <span className="ll-dot-live absolute right-3 top-1/2 -translate-y-1/2" aria-hidden />
+                ) : null}
               </Link>
               <Link
                 href="/account/questionnaire"

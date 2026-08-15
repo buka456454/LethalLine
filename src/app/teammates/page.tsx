@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import PublicImage from "@/components/ui/PublicImage";
 import UserRoleBadge from "@/components/ui/UserRoleBadge";
 import SplitHeading from "@/components/motion/SplitHeading";
+import FriendActionButton, { type FriendActionState } from "@/components/friends/FriendActionButton";
 
 type Game = { id: string; name: string; slug: string };
 type TeammateProfile = {
@@ -24,6 +25,7 @@ type Teammate = {
   displayName: string | null;
   avatarUrl: string | null;
   bio: string | null;
+  friendRelation?: FriendActionState;
   gameProfiles: TeammateProfile[];
 };
 
@@ -287,6 +289,12 @@ export default function TeammatesPage() {
                   <Link href={`/u/${encodeURIComponent(user.username)}`} className="button-secondary text-sm">
                     Профиль
                   </Link>
+                  <FriendActionButton
+                    peerUserId={user.id}
+                    initial={user.friendRelation ?? { kind: "none" }}
+                    variant="compact"
+                    className="button-ghost text-xs"
+                  />
                 </div>
               </motion.li>
             );

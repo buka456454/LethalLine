@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import TabBar, { type TabItem } from "@/components/ui/TabBar";
 
@@ -14,6 +14,7 @@ function tournamentIdFromPath(pathname: string) {
 
 export default function ContextTabBar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const tournamentId = tournamentIdFromPath(pathname);
   let tabs: TabItem[] = [];
 
@@ -30,6 +31,13 @@ export default function ContextTabBar() {
       { href: "/admin/applications", label: "Заявки", active: pathname.startsWith("/admin/applications") },
       { href: "/admin/tournaments/new", label: "Турнир", active: pathname.startsWith("/admin/tournaments") },
       { href: "/admin/matches/new", label: "Матч", active: pathname.startsWith("/admin/matches") },
+    ];
+  } else if (pathname.startsWith("/friends")) {
+    const tab = searchParams.get("tab") ?? "friends";
+    tabs = [
+      { href: "/friends", label: "Друзья", active: tab === "friends" },
+      { href: "/friends?tab=incoming", label: "Входящие", active: tab === "incoming" },
+      { href: "/friends?tab=outgoing", label: "Исходящие", active: tab === "outgoing" },
     ];
   }
 

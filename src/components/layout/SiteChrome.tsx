@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Suspense } from "react";
 import Header from "@/components/layout/Header";
 import SiteStatusStrip from "@/components/layout/SiteStatusStrip";
 import ContextTabBar from "@/components/layout/ContextTabBar";
@@ -20,7 +21,9 @@ export default async function SiteChrome({ children }: { children: ReactNode }) 
       <SiteStatusStrip shell={shell} />
       {shell.needsPhoneVerify ? <PhoneVerificationBanner phone={shell.phone} /> : null}
       {shell.session && !shell.hasQuestionnaire ? <QuestionnaireBanner /> : null}
-      <ContextTabBar />
+      <Suspense fallback={null}>
+        <ContextTabBar />
+      </Suspense>
       <main className="relative z-10 mx-auto flex w-full max-w-7xl flex-1 px-4 py-6 pb-24 md:pb-6">{children}</main>
       <SiteFooter />
       <MobileDock shell={shell} />

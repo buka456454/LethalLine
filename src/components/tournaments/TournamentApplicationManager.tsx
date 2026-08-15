@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { requiredTeammates } from "@/lib/tournament";
 import { getApplicationStatusLabel } from "@/lib/tournamentStatus";
+import ParticipantAvatar from "@/components/ui/ParticipantAvatar";
+import TeamRosterSlots, { type RosterCaptain, type RosterFriend } from "@/components/tournaments/TeamRosterSlots";
 
 const PAYMENT_STATUS_LABELS: Record<string, string> = {
   UNPAID: "не оплачен",
@@ -33,6 +35,7 @@ export default function TournamentApplicationManager({
   experienceVerified,
   existingTeamApplication,
   canSubmitApplication,
+  captain,
 }: {
   tournamentId: string;
   teamSize: 1 | 2 | 5;
@@ -42,13 +45,34 @@ export default function TournamentApplicationManager({
   experienceVerified: boolean;
   existingTeamApplication: TeamApplicationPreview | null;
   canSubmitApplication: boolean;
+  captain: RosterCaptain;
 }) {
   const router = useRouter();
-  const [teamName, setTeamName] = useState(existingTeamApplication?.teamName ?? "");
-  const [memberUsernames, setMemberUsernames] = useState(
-    existingTeamApplication ? existingTeamApplication.members.map((member) => member.username).join(", ") : "",
+  const isSolo = teamSize === 1;
+  const required = requiredTeammates(teamSize);
+
+  const initialTeammates = useMemo(() => {
+    const empty = Array.from({ length: required }, () => null as RosterFriend | null);
+    if (!existingTeamApplication || isSolo) return empty;
+    const others = existingTeamApplication.members.filter((member) => !member.isCaptain);
+    return empty.map((_, index) => {
+      const member = others[index];
+      if (!member) return null;
+      return {
+        id: member.id,
+        username: member.username,
+        displayName: null,
+        avatarUrl: null,
+        rankLabel: null,
+      } satisfies RosterFriend;
+    });
+  }, [existingTeamApplication, isSolo, required]);
+
+  const [teamName, setTeamName] = useState(
+    existingTeamApplication && !isSolo ? existingTeamApplication.teamName : "",
   );
-  const [logoUrl, setLogoUrl] = useState(existingTeamApplication?.teamLogoUrl ?? "");
+  const [teammates, setTeammates] = useState<Array<RosterFriend | null>>(initialTeammates);
+  const [logoUrl, setLogoUrl] = useState(isSolo ? "" : existingTeamApplication?.teamLogoUrl ?? "");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [agreeOffer, setAgreeOffer] = useState(false);
@@ -56,14 +80,9 @@ export default function TournamentApplicationManager({
   const isPaidTournament = entryFeeMinor > 0;
   const paymentStatus = existingTeamApplication?.paymentStatus ?? "UNPAID";
   const blockedByRank = requiresVerifiedExperience && !experienceVerified;
-  const submitDisabled = loading || !canSubmitApplication || blockedByRank;
-
-  const parsedMembers = memberUsernames
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
-  const uniqueMembers = Array.from(new Set(parsedMembers.map((value) => value.toLowerCase())));
-  const hasDuplicates = uniqueMembers.length !== parsedMembers.length;
+  const filledTeammates = teammates.filter((item): item is RosterFriend => Boolean(item));
+  const rosterComplete = isSolo || filledTeammates.length === required;
+  const submitDisabled = loading || !canSubmitApplication || blockedByRank || (!isSolo && !rosterComplete);
 
   const uploadLogo = async (file: File) => {
     const formData = new FormData();
@@ -88,44 +107,36 @@ export default function TournamentApplicationManager({
       setMessage("Турнир завершён: подача заявок недоступна.");
       return;
     }
-    const isSolo = teamSize === 1;
     if (!isSolo && !teamName.trim()) {
       setMessage("Введите название команды");
+      return;
+    }
+    if (!isSolo && filledTeammates.length !== required) {
+      setMessage(`Добавьте ${required} друзей в состав.`);
       return;
     }
 
     setLoading(true);
     setMessage("");
-    if (hasDuplicates) {
-      setMessage("Ники игроков повторяются. Убери дубликаты.");
-      setLoading(false);
-      return;
-    }
-    const required = requiredTeammates(teamSize);
-    if (required > 0 && parsedMembers.length !== required) {
-      setMessage(`Для этого турнира укажите ровно ${required} ник(а) сокомандников.`);
-      setLoading(false);
-      return;
-    }
 
     const response = await fetch(`/api/tournaments/${tournamentId}/team-apply`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         teamName: isSolo ? "Соло-заявка" : teamName.trim(),
-        teamLogoUrl: logoUrl || undefined,
-        memberUsernames: isSolo ? [] : parsedMembers,
+        teamLogoUrl: isSolo ? undefined : logoUrl || undefined,
+        memberUsernames: isSolo ? [] : filledTeammates.map((member) => member.username),
       }),
     });
     const body = (await response.json()) as { error?: string };
     if (!response.ok) {
-      setMessage(body.error ?? "Не удалось отправить командную заявку");
+      setMessage(body.error ?? "Не удалось отправить заявку");
       setLoading(false);
       return;
     }
 
     setLoading(false);
-    setMessage(isSolo ? "Соло-заявка отправлена." : "Командная заявка отправлена.");
+    setMessage(isSolo ? "Заявка отправлена." : "Командная заявка отправлена.");
     if (isPaidTournament && agreeOffer) {
       const pay = await fetch(`/api/tournaments/${tournamentId}/team-apply/payment`, { method: "POST" });
       const payBody = (await pay.json()) as { paymentUrl?: string | null; error?: string };
@@ -144,7 +155,7 @@ export default function TournamentApplicationManager({
       return;
     }
     if (!existingTeamApplication) {
-      setMessage("Сначала отправьте заявку команды, затем оплатите участие.");
+      setMessage("Сначала отправьте заявку, затем оплатите участие.");
       return;
     }
     if (!agreeOffer) {
@@ -171,12 +182,14 @@ export default function TournamentApplicationManager({
   return (
     <div className="ll-frame p-5">
       <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-[#14ffec]">
-        {teamSize === 1 ? "Заявка на участие" : `Заявка команды (${teamSize} игроков)`}
+        {isSolo ? "Заявка на участие" : `Заявка команды (${teamSize} игроков)`}
       </h3>
       <p className="mt-2 text-sm text-zinc-400">
         {isPaidTournament
           ? `После отправки откроется оплата взноса ${(entryFeeMinor / 100).toFixed(0)} ₽ через Т-Банк.`
-          : "Заявку отправляет капитан, а модерация проверит состав и допустит команду."}
+          : isSolo
+            ? "Вы подаёте заявку от себя. В сетке будет ваш аватар или буква ника."
+            : "Соберите состав из друзей, при желании загрузите логотип и нажмите «Готово»."}
       </p>
       {blockedByRank && (
         <p className="mt-3 border border-[var(--ll-line)] px-3 py-2 text-sm text-zinc-200">
@@ -190,49 +203,61 @@ export default function TournamentApplicationManager({
         <p className="mt-2 text-sm text-zinc-500">Приём заявок на этот турнир закрыт.</p>
       )}
 
-      <div className="mt-4 space-y-3">
-        {teamSize > 1 && (
-          <input
-            value={teamName}
-            onChange={(event) => setTeamName(event.target.value)}
-            className="input-base"
-            placeholder="Название команды"
-          />
-        )}
-        {teamSize > 1 && (
-          <>
-            <textarea
-              value={memberUsernames}
-              onChange={(event) => setMemberUsernames(event.target.value)}
-              className="input-base min-h-24"
-              placeholder={`Ники остальных игроков через запятую (${requiredTeammates(teamSize)} шт.)`}
+      <div className="mt-4 space-y-4">
+        {isSolo ? (
+          <div className="flex items-center gap-3 border border-[var(--ll-line)] bg-black/30 p-3">
+            <ParticipantAvatar
+              label={captain.displayName || captain.username}
+              logoUrl={captain.avatarUrl}
+              size={40}
             />
-            <p className="text-xs text-zinc-500">
-              Капитан — вы, вас вписывать не нужно. Указано {parsedMembers.length} из {requiredTeammates(teamSize)}
-              {hasDuplicates ? " · есть повторяющиеся ники" : ""}
-            </p>
+            <div>
+              <p className="text-sm font-semibold text-zinc-100">{captain.displayName || captain.username}</p>
+              <p className="text-xs text-zinc-500">@{captain.username} · соло</p>
+            </div>
+          </div>
+        ) : null}
+
+        {!isSolo ? (
+          <>
+            <input
+              value={teamName}
+              onChange={(event) => setTeamName(event.target.value)}
+              className="input-base"
+              placeholder="Название команды"
+            />
+            <TeamRosterSlots
+              teamSize={teamSize}
+              captain={captain}
+              value={teammates}
+              onChange={setTeammates}
+            />
+            <label className="block">
+              <span className="mb-1 block text-xs uppercase tracking-wider text-zinc-500">
+                Логотип команды (необязательно)
+              </span>
+              <input
+                type="file"
+                accept=".png,.jpg,.jpeg,.webp,.svg"
+                className="input-base"
+                onChange={async (event) => {
+                  const file = event.target.files?.[0];
+                  if (!file) return;
+                  try {
+                    setMessage("Загрузка логотипа...");
+                    const uploaded = await uploadLogo(file);
+                    setLogoUrl(uploaded);
+                    setMessage("Логотип загружен");
+                  } catch (error) {
+                    setMessage(error instanceof Error ? error.message : "Ошибка загрузки логотипа");
+                  }
+                }}
+              />
+              {logoUrl ? <p className="mt-1 text-xs text-zinc-500">Логотип выбран</p> : null}
+            </label>
           </>
-        )}
-        <label className="block">
-          <span className="mb-1 block text-xs uppercase tracking-wider text-zinc-500">Логотип (необязательно)</span>
-          <input
-            type="file"
-            accept=".png,.jpg,.jpeg,.webp,.svg"
-            className="input-base"
-            onChange={async (event) => {
-              const file = event.target.files?.[0];
-              if (!file) return;
-              try {
-                setMessage("Загрузка логотипа...");
-                const uploaded = await uploadLogo(file);
-                setLogoUrl(uploaded);
-                setMessage("Логотип загружен");
-              } catch (error) {
-                setMessage(error instanceof Error ? error.message : "Ошибка загрузки логотипа");
-              }
-            }}
-          />
-        </label>
+        ) : null}
+
         {existingTeamApplication && (
           <p className="text-xs text-zinc-400">
             Ваша заявка {getApplicationStatusLabel(existingTeamApplication.status)}
@@ -251,6 +276,11 @@ export default function TournamentApplicationManager({
             </span>
           </label>
         )}
+        {!isSolo && !rosterComplete ? (
+          <p className="text-xs text-zinc-500">
+            Чтобы отправить заявку, заполните все слоты друзьями ({filledTeammates.length}/{required}).
+          </p>
+        ) : null}
         <button
           type="button"
           onClick={existingTeamApplication && isPaidTournament && paymentStatus !== "PAID" ? initPayment : submitTeamApplication}
@@ -260,8 +290,8 @@ export default function TournamentApplicationManager({
           {loading
             ? "Обработка..."
             : isPaidTournament
-              ? `Отправить заявку и оплатить ${(entryFeeMinor / 100).toFixed(0)} ₽`
-              : "Отправить заявку"}
+              ? `Готово · оплатить ${(entryFeeMinor / 100).toFixed(0)} ₽`
+              : "Готово"}
         </button>
         {message && <p className="text-sm text-[#14ffec]">{message}</p>}
       </div>

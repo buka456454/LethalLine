@@ -3,7 +3,7 @@ import type { ShellData } from "@/lib/shellData";
 import { cn } from "@/lib/cn";
 
 export default function MobileDock({ shell }: { shell: ShellData }) {
-  const { session, unreadChats, cup } = shell;
+  const { session, unreadChats, pendingFriendRequests, cup } = shell;
   const applyHref = cup ? `/tournaments/${cup.id}/apply` : "/sign-in?mode=register";
   const centerHref = session
     ? cup?.status === "REGISTRATION_OPEN"
@@ -40,8 +40,9 @@ export default function MobileDock({ shell }: { shell: ShellData }) {
           </Link>
         )}
         {session ? (
-          <Link href={`/u/${encodeURIComponent(session.username)}`} className={item}>
+          <Link href={`/u/${encodeURIComponent(session.username)}`} className={cn(item, "relative")}>
             Профиль
+            {pendingFriendRequests > 0 ? <span className="ll-dot-live absolute right-5 top-1.5" /> : null}
           </Link>
         ) : (
           <Link href="/guide" className={item}>

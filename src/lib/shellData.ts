@@ -18,6 +18,7 @@ export type ShellData = {
   session: SessionPayload | null;
   canAdmin: boolean;
   unreadChats: number;
+  pendingFriendRequests: number;
   cup: ShellCup | null;
   rankVerified: boolean;
   hasQuestionnaire: boolean;
@@ -31,6 +32,7 @@ export async function loadShellData(): Promise<ShellData> {
     session,
     canAdmin: false,
     unreadChats: 0,
+    pendingFriendRequests: 0,
     cup: null,
     rankVerified: false,
     hasQuestionnaire: false,
@@ -76,7 +78,7 @@ export async function loadShellData(): Promise<ShellData> {
       return { ...empty, cup };
     }
 
-    const [unreadChats, user, profiles] = await Promise.all([
+    const [unreadChats, pendingFriendRequests, user, profiles] = await Promise.all([
       prisma.chatMessage.count({
         where: {
           readAt: null,
@@ -85,6 +87,9 @@ export async function loadShellData(): Promise<ShellData> {
             OR: [{ participantAId: session.sub }, { participantBId: session.sub }],
           },
         },
+      }),
+      prisma.friendship.count({
+        where: { addresseeId: session.sub, status: "PENDING" },
       }),
       prisma.user.findUnique({
         where: { id: session.sub },
@@ -116,6 +121,7 @@ export async function loadShellData(): Promise<ShellData> {
       session,
       canAdmin: canAccessAdminTabSession(session),
       unreadChats,
+      pendingFriendRequests,
       cup,
       rankVerified,
       hasQuestionnaire,

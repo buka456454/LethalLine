@@ -1,9 +1,11 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import PublicImage from "@/components/ui/PublicImage";
 import UserRoleBadge from "@/components/ui/UserRoleBadge";
+import FriendActionButton, { type FriendActionState } from "@/components/friends/FriendActionButton";
 
 type Dialog = {
   id: string;
@@ -39,6 +41,7 @@ function ChatsPageInner() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const [friendState, setFriendState] = useState<FriendActionState | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const messagesViewportRef = useRef<HTMLDivElement | null>(null);
 
@@ -145,6 +148,27 @@ function ChatsPageInner() {
 
   const activeDialog = useMemo(() => dialogs.find((d) => d.id === activeDialogId) ?? null, [activeDialogId, dialogs]);
 
+  useEffect(() => {
+    if (!activeDialog) {
+      setFriendState(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/friends/status?userId=${encodeURIComponent(activeDialog.peer.id)}`);
+        const body = (await res.json()) as FriendActionState & { error?: string };
+        if (!res.ok || cancelled) return;
+        setFriendState(body);
+      } catch {
+        if (!cancelled) setFriendState({ kind: "none" });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeDialog]);
+
   return (
     <div className="w-full space-y-4">
       <header className="flex items-center gap-3">
@@ -159,7 +183,17 @@ function ChatsPageInner() {
           {loadingDialogs ? (
             <p className="mt-3 text-sm text-zinc-500">Загрузка…</p>
           ) : dialogs.length === 0 ? (
-            <p className="mt-3 text-sm text-zinc-500">Диалогов пока нет.</p>
+            <p className="mt-3 text-sm text-zinc-500">
+              Диалогов пока нет. Найдите игроков на{" "}
+              <Link href="/teammates" className="text-[#14ffec] hover:underline">
+                странице поиска
+              </Link>{" "}
+              или откройте{" "}
+              <Link href="/friends" className="text-[#14ffec] hover:underline">
+                друзей
+              </Link>
+              .
+            </p>
           ) : (
             <ul className="mt-3 space-y-2">
               {dialogs.map((dialog) => {
@@ -204,12 +238,26 @@ function ChatsPageInner() {
         </aside>
 
         <section className="flex h-[70vh] min-h-[480px] min-w-0 flex-col overflow-hidden">
-          <div className="border-b border-[#323232] px-4 py-3">
-            <p className="flex items-center gap-2 text-sm font-semibold text-zinc-100">
-              <span>{activeDialog ? activeDialog.peer.displayName || activeDialog.peer.username : "Выберите диалог"}</span>
-              {activeDialog && <UserRoleBadge role={activeDialog.peer.role} size="sm" />}
-            </p>
-            {activeDialog && <p className="text-xs text-zinc-500">@{activeDialog.peer.username}</p>}
+          <div className="flex items-start justify-between gap-3 border-b border-[#323232] px-4 py-3">
+            <div className="min-w-0">
+              <p className="flex items-center gap-2 text-sm font-semibold text-zinc-100">
+                <span>
+                  {activeDialog ? activeDialog.peer.displayName || activeDialog.peer.username : "Выберите диалог"}
+                </span>
+                {activeDialog && <UserRoleBadge role={activeDialog.peer.role} size="sm" />}
+              </p>
+              {activeDialog ? (
+                <Link
+                  href={`/u/${encodeURIComponent(activeDialog.peer.username)}`}
+                  className="text-xs text-zinc-500 hover:text-[#14ffec]"
+                >
+                  @{activeDialog.peer.username}
+                </Link>
+              ) : null}
+            </div>
+            {activeDialog && friendState && friendState.kind !== "self" ? (
+              <FriendActionButton peerUserId={activeDialog.peer.id} initial={friendState} variant="compact" />
+            ) : null}
           </div>
 
           <div className="min-h-0 flex-1 p-4">

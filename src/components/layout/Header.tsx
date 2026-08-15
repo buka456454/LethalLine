@@ -14,7 +14,7 @@ export default function Header({
   shell: ShellData;
   logoSrc?: string | null;
 }) {
-  const { session, canAdmin, unreadChats } = shell;
+  const { session, canAdmin, unreadChats, pendingFriendRequests } = shell;
 
   return (
     <header className="sticky top-0 z-30 border-b border-[var(--ll-line)] bg-[#141414]/92 backdrop-blur">
@@ -61,7 +61,11 @@ export default function Header({
               </Link>
             </>
           ) : (
-            <AccountMenu username={session.username} canAdmin={canAdmin} />
+            <AccountMenu
+              username={session.username}
+              canAdmin={canAdmin}
+              pendingFriendRequests={pendingFriendRequests}
+            />
           )}
         </div>
       </div>

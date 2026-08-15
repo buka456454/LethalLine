@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import PublicImage from "@/components/ui/PublicImage";
+import ParticipantAvatar from "@/components/ui/ParticipantAvatar";
 
 type BracketMatch = {
   id: string;
@@ -48,7 +48,7 @@ function ParticipantCell({
   const logo = assets[label]?.logoUrl;
   const inner = (
     <span className="inline-flex items-center gap-2">
-      {logo && <PublicImage src={logo} alt={label} className="h-5 w-5 rounded object-cover" width={20} height={20} />}
+      <ParticipantAvatar label={label} logoUrl={logo} size={20} />
       {linkSet.has(label) ? (
         <Link href={`/u/${encodeURIComponent(label)}`} className="text-[#14ffec] underline decoration-[#323232] hover:decoration-[#14ffec]">
           {label}

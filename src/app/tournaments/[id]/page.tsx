@@ -41,7 +41,7 @@ type TournamentDetails = {
     teamLogoUrl: string | null;
     status: "PENDING" | "APPROVED" | "REJECTED";
     captainId: string;
-    captain: { username: string };
+    captain: { username: string; avatarUrl: string | null };
     members: Array<{ id: string; username: string; isCaptain: boolean; linkedUserId: string | null }>;
   }>;
   matches: Array<{
@@ -97,9 +97,16 @@ export default async function TournamentDetailsPage({ params }: { params: Promis
   const canSubmitApplication = tournament.status === "REGISTRATION_OPEN" && !isFinishedByTime;
   const participantAssets: Record<string, { logoUrl?: string | null }> = {};
   for (const app of tournament.teamApplications) {
-    if (app.teamLogoUrl) participantAssets[app.teamName] = { logoUrl: app.teamLogoUrl };
     const captainName = app.members.find((m) => m.isCaptain)?.username ?? app.captain.username;
-    if (app.teamLogoUrl) participantAssets[captainName] = { logoUrl: app.teamLogoUrl };
+    const isSolo = tournament.teamSize === 1 || / \(соло\)$/i.test(app.teamName);
+    if (app.teamLogoUrl) {
+      participantAssets[app.teamName] = { logoUrl: app.teamLogoUrl };
+      participantAssets[captainName] = { logoUrl: app.teamLogoUrl };
+    } else if (isSolo && app.captain.avatarUrl) {
+      // Соло без логотипа команды: в сетке показываем аватар капитана.
+      participantAssets[app.teamName] = { logoUrl: app.captain.avatarUrl };
+      participantAssets[captainName] = { logoUrl: app.captain.avatarUrl };
+    }
   }
   for (const reg of tournament.registrations) {
     if (reg.user.avatarUrl) participantAssets[reg.user.username] = { logoUrl: reg.user.avatarUrl };

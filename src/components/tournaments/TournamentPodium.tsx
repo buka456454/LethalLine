@@ -1,5 +1,5 @@
 import Link from "next/link";
-import PublicImage from "@/components/ui/PublicImage";
+import ParticipantAvatar from "@/components/ui/ParticipantAvatar";
 import type { PodiumResult } from "@/lib/tournamentPodium";
 
 type Props = {
@@ -24,9 +24,7 @@ function PodiumName({
         const logo = assets[part]?.logoUrl;
         const inner = (
           <span className="inline-flex items-center gap-2">
-            {logo ? (
-              <PublicImage src={logo} alt={part} width={28} height={28} className="h-7 w-7 rounded-md object-cover" />
-            ) : null}
+            <ParticipantAvatar label={part} logoUrl={logo} size={28} />
             {linkSet.has(part) ? (
               <Link
                 href={`/u/${encodeURIComponent(part)}`}
