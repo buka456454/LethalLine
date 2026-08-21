@@ -13,6 +13,18 @@ export async function PATCH(request: Request, context: { params: Promise<{ match
     const parsed = updateMatchSchema.safeParse(await request.json());
     if (!parsed.success) return fail("Invalid payload", 422);
 
+    const existing = await prisma.match.findUnique({ where: { id: matchId } });
+    if (!existing) return fail("Failed to update match", 500);
+
+    const winner = parsed.data.winnerLabel?.trim() ?? "";
+    if (parsed.data.status === "FINISHED" && winner) {
+      const a = existing.participantA?.trim().toLowerCase() ?? "";
+      const b = existing.participantB?.trim().toLowerCase() ?? "";
+      if (winner.toLowerCase() !== a && winner.toLowerCase() !== b) {
+        return fail("Winner must match participant A or B", 422);
+      }
+    }
+
     const match = await prisma.match.update({
       where: { id: matchId },
       data: parsed.data,

@@ -1,0 +1,19 @@
+[Unit]
+Description=Lethal Line Telegram admin bot (long poll)
+After=network.target lethalline.service
+Wants=lethalline.service
+
+[Service]
+Type=simple
+User=lethalline
+Group=lethalline
+WorkingDirectory=/home/lethalline/LethalLine
+Environment=NODE_ENV=production
+Environment=PATH=/home/lethalline/.nvm/versions/node/v22.23.2/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=/home/lethalline/LethalLine/.env
+ExecStart=/home/lethalline/.nvm/versions/node/v22.23.2/bin/node /home/lethalline/LethalLine/scripts/telegram-bot-poll.cjs
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

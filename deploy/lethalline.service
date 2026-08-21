@@ -1,0 +1,18 @@
+[Unit]
+Description=Lethal Line Next.js
+After=network.target
+
+[Service]
+Type=simple
+User=lethalline
+Group=lethalline
+WorkingDirectory=/home/lethalline/LethalLine
+Environment=NODE_ENV=production
+Environment=PATH=/home/lethalline/.nvm/versions/node/v22.23.2/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=/home/lethalline/LethalLine/.env
+ExecStart=/home/lethalline/.nvm/versions/node/v22.23.2/bin/node /home/lethalline/LethalLine/node_modules/.bin/next start -H 127.0.0.1 -p 3000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,164 +1,202 @@
 "use client";
 
+import BracketCanvas from "@/components/bracket/BracketCanvas";
+import BracketInspector from "@/components/bracket/BracketInspector";
+import BracketMatchCard from "@/components/bracket/BracketMatchCard";
+import BracketMinimap from "@/components/bracket/BracketMinimap";
+import { useBracketCamera } from "@/components/bracket/useBracketCamera";
+import { layoutBracket } from "@/lib/bracket-layout";
+import type { BracketMatch, BracketMatchStatus, ParticipantRoster } from "@/lib/bracket-types";
 import { TournamentFormat } from "@prisma/client";
-import { motion } from "framer-motion";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
-import ParticipantAvatar from "@/components/ui/ParticipantAvatar";
-
-type BracketMatch = {
-  id: string;
-  round: number;
-  orderInRound: number;
-  bracketSegment: string;
-  participantA: string | null;
-  participantB: string | null;
-  scoreA: number;
-  scoreB: number;
-  status: "SCHEDULED" | "LIVE" | "FINISHED";
-  winnerLabel: string | null;
-};
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type Props = {
   format: TournamentFormat;
   matches: BracketMatch[];
   canEdit?: boolean;
-  participantAssets?: Record<string, { logoUrl?: string | null }>;
-  /** Имена участников (username на сайте), для которых показываем ссылку на профиль */
-  linkableUsernames?: string[];
+  rosters?: Record<string, ParticipantRoster>;
 };
 
-function statusClass(status: BracketMatch["status"]) {
-  if (status === "LIVE") return "border-[#14ffec] bg-[#0d7377]/25";
-  if (status === "FINISHED") return "border-[#0d7377] bg-[#323232]";
-  return "border-[#323232] bg-[#212121]";
+function nodeMatchesQuery(match: BracketMatch, query: string, rosters: Record<string, ParticipantRoster>) {
+  const q = query.trim().toLowerCase();
+  if (!q) return false;
+  const labels = [match.participantA, match.participantB];
+  if (labels.some((label) => label?.toLowerCase().includes(q))) return true;
+  for (const label of labels) {
+    const roster = label ? rosters[label] : undefined;
+    if (roster?.members.some((member) => member.username.toLowerCase().includes(q))) return true;
+  }
+  return false;
 }
 
-function ParticipantCell({
-  label,
-  assets,
-  linkSet,
-}: {
-  label: string | null;
-  assets: Record<string, { logoUrl?: string | null }>;
-  linkSet: Set<string>;
-}) {
-  if (!label) return <span className="text-zinc-500">TBD</span>;
-  const logo = assets[label]?.logoUrl;
-  const inner = (
-    <span className="inline-flex items-center gap-2">
-      <ParticipantAvatar label={label} logoUrl={logo} size={20} />
-      {linkSet.has(label) ? (
-        <Link href={`/u/${encodeURIComponent(label)}`} className="text-[#14ffec] underline decoration-[#323232] hover:decoration-[#14ffec]">
-          {label}
-        </Link>
-      ) : (
-        label
-      )}
-    </span>
-  );
-  return inner;
-}
-
-export default function TournamentBracket({
-  format,
-  matches,
-  canEdit = false,
-  participantAssets = {},
-  linkableUsernames = [],
-}: Props) {
+export default function TournamentBracket({ format, matches, canEdit = false, rosters = {} }: Props) {
   const router = useRouter();
-  const [busyMatchId, setBusyMatchId] = useState<string | null>(null);
-  const linkSet = useMemo(() => new Set(linkableUsernames), [linkableUsernames]);
-  const grouped = matches.reduce<Record<number, BracketMatch[]>>((acc, match) => {
-    acc[match.round] ??= [];
-    acc[match.round].push(match);
-    return acc;
-  }, {});
+  const layout = useMemo(() => layoutBracket(matches, format), [format, matches]);
+  const {
+    viewportRef,
+    camera,
+    viewport,
+    zoomBy,
+    zoomToPercent,
+    fit,
+    centerOn,
+    panToWorld,
+    shouldIgnoreClick,
+  } = useBracketCamera(layout);
+  const seenIdsRef = useRef(new Set<string>());
+  const nodesRef = useRef(layout.nodes);
+  nodesRef.current = layout.nodes;
+  const [query, setQuery] = useState("");
+  const [expanded, setExpanded] = useState<{ matchId: string; side: "A" | "B" } | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  const rounds = Object.keys(grouped)
-    .map((n) => Number(n))
-    .sort((a, b) => a - b);
+  const highlightedIds = useMemo(() => {
+    const q = query.trim();
+    if (q.length < 2) return new Set<string>();
+    return new Set(layout.nodes.filter((node) => nodeMatchesQuery(node.match, q, rosters)).map((node) => node.id));
+  }, [layout.nodes, query, rosters]);
+  const firstHitId = useMemo(() => {
+    if (query.trim().length < 2) return null;
+    return layout.nodes.find((node) => highlightedIds.has(node.id))?.id ?? null;
+  }, [highlightedIds, layout.nodes, query]);
 
-  const applyWinner = async (match: BracketMatch, winnerLabel: string) => {
-    setBusyMatchId(match.id);
-    const isA = winnerLabel === (match.participantA ?? "");
-    const response = await fetch(`/api/admin/matches/${match.id}`, {
+  useEffect(() => {
+    if (!firstHitId) return;
+    const timer = window.setTimeout(() => {
+      const node = nodesRef.current.find((item) => item.id === firstHitId);
+      if (node) centerOn(node);
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [centerOn, firstHitId]);
+
+  const selectedMatch = matches.find((match) => match.id === selectedId) ?? null;
+  const zoomPct = Math.round(camera.scale * 100);
+
+  const saveMatch = async (payload: {
+    scoreA: number;
+    scoreB: number;
+    status: BracketMatchStatus;
+    winnerLabel?: string;
+  }) => {
+    if (!selectedMatch) return;
+    setBusy(true);
+    setSaveError(null);
+    const response = await fetch(`/api/admin/matches/${selectedMatch.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        scoreA: isA ? 1 : 0,
-        scoreB: isA ? 0 : 1,
-        status: "FINISHED",
-        winnerLabel,
-      }),
+      body: JSON.stringify(payload),
     });
-    setBusyMatchId(null);
-    if (response.ok) router.refresh();
+    const json = (await response.json().catch(() => ({}))) as { error?: string };
+    setBusy(false);
+    if (!response.ok) {
+      setSaveError(json.error ?? "Не удалось сохранить матч");
+      return;
+    }
+    router.refresh();
   };
 
   return (
-    <section className="mt-6 overflow-x-auto rounded-xl border border-[#323232] bg-[#212121] p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-bold uppercase tracking-[0.16em] text-zinc-300">Сетка турнира</h2>
-        <span className="rounded bg-[#323232] px-2 py-1 text-xs text-[#14ffec]">{format}</span>
+    <section className="ll-frame ll-frame--brackets mt-6 overflow-hidden bg-[#212121] p-3 sm:p-4">
+      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <h2 className="text-sm font-bold uppercase tracking-[0.16em] text-zinc-300">Сетка турнира</h2>
+          <span className="rounded bg-[#323232] px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-[#14ffec]">
+            {format}
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            className="input-base h-9 min-w-[12rem] flex-1 py-1 text-sm sm:max-w-xs"
+            placeholder="Найти команду или игрока"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter") return;
+              const node = layout.nodes.find((item) => highlightedIds.has(item.id));
+              if (node) centerOn(node);
+            }}
+            aria-label="Поиск по сетке"
+          />
+          <div className="flex items-center gap-1">
+            <button type="button" className="button-secondary px-2 py-1 text-xs" onClick={() => zoomBy(0.9)} aria-label="Уменьшить">
+              −
+            </button>
+            <button type="button" className="button-secondary px-2 py-1 text-xs tabular-nums" onClick={zoomToPercent} aria-label="Масштаб 100 процентов">
+              {zoomPct}%
+            </button>
+            <button type="button" className="button-secondary px-2 py-1 text-xs" onClick={() => zoomBy(1.1)} aria-label="Увеличить">
+              +
+            </button>
+            <button type="button" className="button-secondary px-2 py-1 text-xs uppercase tracking-wider" onClick={fit}>
+              Fit
+            </button>
+          </div>
+        </div>
       </div>
 
-      <div className="flex min-w-max gap-6 pb-2">
-        {rounds.map((round) => (
-          <div key={round} className="w-72">
-            <h3 className="mb-3 text-xs uppercase tracking-[0.16em] text-zinc-500">Раунд {round}</h3>
-            <div className="space-y-3">
-              {grouped[round].map((match, idx) => (
-                <motion.article
-                  key={match.id}
-                  initial={{ opacity: 0, x: -12 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.04, duration: 0.28 }}
-                  className={`rounded-lg border p-3 ${statusClass(match.status)}`}
-                >
-                  <div className="flex items-center justify-between text-xs text-zinc-400">
-                    <span>
-                      {match.bracketSegment} / #{match.orderInRound}
-                    </span>
-                    <span>{match.status}</span>
-                  </div>
-                  <div className="mt-2 grid grid-cols-[1fr_auto] gap-2 text-sm text-zinc-100">
-                    <ParticipantCell label={match.participantA} assets={participantAssets} linkSet={linkSet} />
-                    <span>{match.scoreA}</span>
-                    <ParticipantCell label={match.participantB} assets={participantAssets} linkSet={linkSet} />
-                    <span>{match.scoreB}</span>
-                  </div>
-                  {match.winnerLabel && (
-                    <p className="mt-2 text-xs uppercase tracking-wider text-[#14ffec]">Winner: {match.winnerLabel}</p>
-                  )}
-                  {canEdit && match.participantA && match.participantB && (
-                    <div className="mt-2 grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        disabled={busyMatchId === match.id}
-                        className="rounded border border-[#323232] bg-[#212121] px-2 py-1 text-xs text-zinc-200 hover:text-[#14ffec]"
-                        onClick={() => void applyWinner(match, match.participantA!)}
-                      >
-                        Победитель A
-                      </button>
-                      <button
-                        type="button"
-                        disabled={busyMatchId === match.id}
-                        className="rounded border border-[#323232] bg-[#212121] px-2 py-1 text-xs text-zinc-200 hover:text-[#14ffec]"
-                        onClick={() => void applyWinner(match, match.participantB!)}
-                      >
-                        Победитель B
-                      </button>
-                    </div>
-                  )}
-                </motion.article>
-              ))}
+      {layout.nodes.length === 0 ? (
+        <p className="px-2 py-10 text-center text-sm text-zinc-500">Сетка пока пуста.</p>
+      ) : (
+        <div className="relative">
+          <BracketCanvas
+            layout={layout}
+            camera={camera}
+            viewportRef={viewportRef}
+            viewport={viewport}
+            expandedMatchId={expanded?.matchId ?? null}
+            renderCard={(node) => {
+              const appear = !seenIdsRef.current.has(node.id);
+              if (appear) seenIdsRef.current.add(node.id);
+              return (
+                <BracketMatchCard
+                  match={node.match}
+                  rosterA={node.match.participantA ? rosters[node.match.participantA] : undefined}
+                  rosterB={node.match.participantB ? rosters[node.match.participantB] : undefined}
+                  highlighted={highlightedIds.has(node.id)}
+                  selected={selectedId === node.id}
+                  expandedSide={expanded?.matchId === node.id ? expanded.side : null}
+                  appear={appear}
+                  onToggleSide={(side) => {
+                    if (shouldIgnoreClick()) return;
+                    setExpanded((prev) =>
+                      prev?.matchId === node.id && prev.side === side ? null : { matchId: node.id, side },
+                    );
+                  }}
+                  onSelect={() => {
+                    if (shouldIgnoreClick()) return;
+                    if (!canEdit) return;
+                    setSelectedId(node.id);
+                    setSaveError(null);
+                  }}
+                />
+              );
+            }}
+          >
+            <div className="pointer-events-none absolute bottom-3 left-3 z-20">
+              <div className="pointer-events-auto">
+                <BracketMinimap
+                  layout={layout}
+                  camera={camera}
+                  viewport={viewport}
+                  onPanToWorld={panToWorld}
+                />
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          </BracketCanvas>
+          {canEdit && selectedMatch ? (
+            <BracketInspector
+              match={selectedMatch}
+              busy={busy}
+              error={saveError}
+              onClose={() => setSelectedId(null)}
+              onSave={(payload) => void saveMatch(payload)}
+            />
+          ) : null}
+        </div>
+      )}
     </section>
   );
 }

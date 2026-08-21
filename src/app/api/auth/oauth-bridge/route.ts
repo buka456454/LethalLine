@@ -13,12 +13,19 @@ function redirectTo(request: Request, target: string) {
   return NextResponse.redirect(new URL(target, resolveBaseUrl(request)));
 }
 
+function safeNextPath(request: Request): string {
+  const next = new URL(request.url).searchParams.get("next")?.trim() ?? "";
+  if (next.startsWith("/") && !next.startsWith("//")) return next;
+  return "/tournaments";
+}
+
 export async function GET(request: Request) {
   const session = await auth();
   const email = session?.user?.email?.trim().toLowerCase();
-  if (!email) return redirectTo(request, "/sign-in?verify=invalid");
+  if (!session || !email) return redirectTo(request, "/sign-in?verify=invalid");
 
-  const user = await getOrCreateOAuthUserByEmail(email);
+  const displayName = session.user?.name?.trim() || null;
+  const user = await getOrCreateOAuthUserByEmail(email, { displayName });
   if (user.isBanned) return redirectTo(request, "/sign-in?verify=invalid");
 
   const jwt = await signSession(
@@ -33,5 +40,5 @@ export async function GET(request: Request) {
   );
   await setSessionCookie(jwt);
 
-  return redirectTo(request, "/tournaments");
+  return redirectTo(request, safeNextPath(request));
 }

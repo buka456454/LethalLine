@@ -4,6 +4,9 @@ import { requireAuth } from "@/lib/guards";
 import { RegistrationStatus, TournamentStatus } from "@prisma/client";
 import { rateLimit } from "@/lib/rate-limit";
 import { checkVerifiedExperienceGate } from "@/lib/verification/gate";
+import { adminApplicationsUrl, escapeHtml } from "@/lib/telegram/format";
+import { regKeyboard } from "@/lib/telegram/keyboards";
+import { notifyAdmin } from "@/lib/telegram/notify";
 
 export async function POST(_: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -52,6 +55,16 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
         status: RegistrationStatus.PENDING,
       },
     });
+
+    void notifyAdmin(
+      [
+        `<b>Solo заявка</b>`,
+        `Игрок: <b>@${escapeHtml(session.username)}</b>`,
+        `Турнир: ${escapeHtml(tournament.title)}`,
+        `<a href="${adminApplicationsUrl()}">Админка</a>`,
+      ].join("\n"),
+      { reply_markup: regKeyboard(registration.id) },
+    );
 
     return ok({ registration }, 201);
   } catch (error) {

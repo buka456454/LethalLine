@@ -18,6 +18,7 @@ function uniqueByLabel(entries: SeedEntry[]) {
   return result;
 }
 
+/** Fisher–Yates. Стартовая сетка обязана быть случайной — не сидим по рейтингу. */
 function shuffle<T>(items: T[]): T[] {
   const arr = [...items];
   for (let i = arr.length - 1; i > 0; i -= 1) {
@@ -89,7 +90,7 @@ export async function reseedTournamentBracket(tournamentId: string) {
         ]
       : tournament.teamApplications.map((a) => ({ label: a.teamName }));
 
-  const entries = shuffle(uniqueByLabel(baseEntries));
+  const entries = shuffle(uniqueByLabel(baseEntries)); // random order, not rating
   const firstRoundMatches = tournament.matches.filter((m) => m.round === 1 && m.bracketSegment !== "LOWER");
 
   const updates = firstRoundMatches.map((match, index) => {
@@ -138,7 +139,7 @@ export async function regenerateTournamentBracketFromApprovedEntries(tournamentI
         ]
       : tournament.teamApplications.map((a) => ({ label: a.teamName }));
 
-  const entries = shuffle(uniqueByLabel(baseEntries));
+  const entries = shuffle(uniqueByLabel(baseEntries)); // random order, not rating
   if (entries.length < 2) {
     await prisma.match.deleteMany({ where: { tournamentId } });
     return;

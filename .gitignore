@@ -46,6 +46,10 @@ next-env.d.ts
 /storage/uploads
 !/storage/.gitkeep
 
+# Runtime Telegram admin chat id
+/data/telegram-admin-chat-id
+/data/
+
 # Легаси-загрузки в public (не коммитить пользовательский контент)
 /public/uploads
 !/public/uploads/.gitkeep

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { readSession } from "@/lib/auth";
+import { isOwnerAdminSession, readSession } from "@/lib/auth";
 import { loadPublicProfileActivity } from "@/lib/publicProfileActivity";
 import { prisma } from "@/lib/prisma";
 import { getTournamentStatusLabel } from "@/lib/tournamentStatus";
@@ -10,6 +10,7 @@ import PublicImage from "@/components/ui/PublicImage";
 import UserRoleBadge from "@/components/ui/UserRoleBadge";
 import StartChatButton from "@/components/ui/StartChatButton";
 import FriendActionButton from "@/components/friends/FriendActionButton";
+import AdminDeleteUserButton from "@/components/admin/AdminDeleteUserButton";
 
 export const dynamic = "force-dynamic";
 
@@ -71,6 +72,7 @@ export default async function PublicUserProfilePage({ params }: { params: Promis
   if (!user || user.isBanned) notFound();
 
   const isOwner = session?.sub === user.id;
+  const canAdminDelete = Boolean(session && isOwnerAdminSession(session) && !isOwner);
   const activity = await loadPublicProfileActivity(user.id, user.username);
   const friendRelation =
     session && !isOwner ? await getFriendRelation(session.sub, user.id) : null;
@@ -141,6 +143,7 @@ export default async function PublicUserProfilePage({ params }: { params: Promis
                     <FriendActionButton peerUserId={user.id} initial={friendRelation ?? { kind: "none" }} />
                   </>
                 )}
+                {canAdminDelete ? <AdminDeleteUserButton userId={user.id} username={user.username} /> : null}
               </div>
             ) : null}
             {user.bio && <p className="mt-4 max-w-2xl text-sm leading-relaxed text-zinc-200">{user.bio}</p>}

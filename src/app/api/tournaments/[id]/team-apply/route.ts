@@ -8,6 +8,9 @@ import { rateLimit } from "@/lib/rate-limit";
 import { teamApplicationSchema } from "@/lib/schemas";
 import { isAllowedTeamSize, requiredTeammates } from "@/lib/tournament";
 import { checkVerifiedExperienceGate } from "@/lib/verification/gate";
+import { adminApplicationsUrl, escapeHtml } from "@/lib/telegram/format";
+import { teamKeyboard } from "@/lib/telegram/keyboards";
+import { notifyAdmin } from "@/lib/telegram/notify";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -150,6 +153,18 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         members: application.members.map((member) => member.username),
       },
     });
+
+    void notifyAdmin(
+      [
+        `<b>Team заявка</b>`,
+        `Команда: <b>${escapeHtml(application.teamName)}</b>`,
+        `Капитан: @${escapeHtml(session.username)}`,
+        `Турнир: ${escapeHtml(application.tournament.title)}`,
+        `Состав: ${escapeHtml(application.members.map((m) => m.username).join(", "))}`,
+        `<a href="${adminApplicationsUrl()}">Админка</a>`,
+      ].join("\n"),
+      { reply_markup: teamKeyboard(application.id) },
+    );
 
     return ok({ application }, 201);
   } catch (error) {

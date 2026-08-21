@@ -7,6 +7,7 @@ import { rateLimit } from "@/lib/rate-limit";
 /** Внешние POST без браузерного Origin — не режем по CSRF. */
 const ORIGIN_EXEMPT_PREFIXES = [
   "/api/payments/tbank/webhook",
+  "/api/telegram/webhook",
   "/api/cron/",
 ];
 

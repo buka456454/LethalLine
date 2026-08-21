@@ -2,6 +2,8 @@ import { Prisma, Role } from "@prisma/client";
 import { fail, ok } from "@/lib/api";
 import { writeAuditLog } from "@/lib/audit";
 import { getAdminOwnerEmail } from "@/lib/auth";
+import { ModerationError } from "@/lib/admin/moderateRegistration";
+import { moderateUser } from "@/lib/admin/moderateUser";
 import { requireOwnerAdmin } from "@/lib/guards";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
@@ -19,21 +21,45 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
     const parsed = payloadSchema.safeParse(await request.json());
     if (!parsed.success) return fail("Invalid payload", 422);
 
-    const user = await prisma.user.update({
-      where: { id: userId },
-      data: {
-        role: parsed.data.role,
-        isBanned: parsed.data.isBanned,
-        banReason: parsed.data.banReason,
-      },
-    });
+    // Preserve previous API behavior for SUPERADMIN / journalist / commentator via HTTP.
+    if (
+      parsed.data.role === Role.SUPERADMIN ||
+      parsed.data.role === Role.JOURNALIST ||
+      parsed.data.role === Role.COMMENTATOR
+    ) {
+      const user = await prisma.user.update({
+        where: { id: userId },
+        data: {
+          role: parsed.data.role,
+          isBanned: parsed.data.isBanned,
+          banReason: parsed.data.banReason,
+        },
+      });
+      await writeAuditLog({
+        actorId: session.sub,
+        action: "USER_UPDATED",
+        entity: "User",
+        entityId: user.id,
+        metadata: { ...parsed.data, source: "admin_api" },
+      });
+      return ok({
+        user: {
+          id: user.id,
+          email: user.email,
+          username: user.username,
+          role: user.role,
+          isBanned: user.isBanned,
+        },
+      });
+    }
 
-    await writeAuditLog({
+    const user = await moderateUser({
+      userId,
+      role: parsed.data.role,
+      isBanned: parsed.data.isBanned,
+      banReason: parsed.data.banReason,
       actorId: session.sub,
-      action: "USER_UPDATED",
-      entity: "User",
-      entityId: user.id,
-      metadata: parsed.data,
+      source: "admin_api",
     });
 
     return ok({
@@ -46,6 +72,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
       },
     });
   } catch (error) {
+    if (error instanceof ModerationError) return fail(error.message, error.status);
     if (error instanceof Error && error.message === "UNAUTHORIZED") return fail("Unauthorized", 401);
     if (error instanceof Error && error.message === "FORBIDDEN") return fail("Forbidden", 403);
     return fail("Failed to update user", 500);

@@ -4,6 +4,9 @@ import { PaymentProvider, PaymentStatus, Prisma, Role } from "@prisma/client";
 import { getTBankConfigFromEnv, type TBankNotificationPayment, verifyTBankNotificationToken } from "@/lib/payments/tbank";
 import { rateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/security/clientIp";
+import { adminApplicationsUrl, escapeHtml } from "@/lib/telegram/format";
+import { teamKeyboard } from "@/lib/telegram/keyboards";
+import { notifyAdmin } from "@/lib/telegram/notify";
 
 export const dynamic = "force-dynamic";
 
@@ -102,6 +105,16 @@ export async function POST(request: Request) {
           })),
         });
       }
+
+      void notifyAdmin(
+        [
+          `<b>Оплата получена</b>`,
+          `Команда: <b>${escapeHtml(application.teamName)}</b>`,
+          `Турнир: ${escapeHtml(application.tournament.title)}`,
+          `<a href="${adminApplicationsUrl()}">Админка</a>`,
+        ].join("\n"),
+        { reply_markup: teamKeyboard(application.id) },
+      );
     }
   } else if (status === "AUTHORIZED") {
     await prisma.teamApplication.update({

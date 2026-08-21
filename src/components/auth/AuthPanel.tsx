@@ -30,21 +30,35 @@ function verifyErrorMessage(verifyStatus?: string) {
   return "";
 }
 
+function authErrorMessage(authError?: string) {
+  if (!authError) return "";
+  if (authError === "Configuration") {
+    return "Вход через Google не настроен на сервере. Добавьте AUTH_GOOGLE_ID и AUTH_GOOGLE_SECRET.";
+  }
+  if (authError === "AccessDenied") return "Доступ через Google отклонён.";
+  if (authError === "OAuthAccountNotLinked") {
+    return "Этот email уже занят другим способом входа. Войдите по паролю или другим аккаунтом.";
+  }
+  return "Не удалось войти через Google. Попробуйте ещё раз.";
+}
+
 export default function AuthPanel({
   logoSrc,
   initialMode = "login",
   verifyStatus,
+  authError,
   nextPath = "/tournaments",
 }: {
   logoSrc?: string | null;
   initialMode?: "login" | "register";
   verifyStatus?: string;
+  authError?: string;
   nextPath?: string;
 }) {
   const router = useRouter();
   const mode = initialMode;
   const googleActionLabel = mode === "register" ? "Зарегистрироваться через Google" : "Войти через Google";
-  const [error, setError] = useState(() => verifyErrorMessage(verifyStatus));
+  const [error, setError] = useState(() => verifyErrorMessage(verifyStatus) || authErrorMessage(authError));
   const [message, setMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [emailHint, setEmailHint] = useState("");
@@ -250,7 +264,10 @@ export default function AuthPanel({
 
         <button
           type="button"
-          onClick={() => void signIn("google", { callbackUrl: "/api/auth/oauth-bridge" })}
+          onClick={() => {
+            const bridge = `/api/auth/oauth-bridge?next=${encodeURIComponent(nextPath)}`;
+            void signIn("google", { callbackUrl: bridge });
+          }}
           className="flex w-full items-center justify-center rounded-md border-0 bg-[linear-gradient(90deg,#4285F4_0%,#34A853_35%,#FBBC05_68%,#EA4335_100%)] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(66,133,244,0.35)] transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#14ffec] focus-visible:ring-offset-2 focus-visible:ring-offset-[#212121]"
         >
           {googleActionLabel}

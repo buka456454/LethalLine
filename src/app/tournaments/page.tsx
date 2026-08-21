@@ -4,15 +4,16 @@ import { getBrandLogos, pickBrandLogo } from "@/lib/brand";
 import { getTournamentStatusLabel } from "@/lib/tournamentStatus";
 import GameCoverPanel from "@/components/games/GameCoverPanel";
 import LoginTournamentNotifications from "@/components/tournaments/LoginTournamentNotifications";
+import TournamentsCatalog from "@/components/tournaments/TournamentsCatalog";
 import PublicImage from "@/components/ui/PublicImage";
 import Kicker from "@/components/ui/Kicker";
 import CtaBox from "@/components/ui/CtaBox";
 import Hint from "@/components/ui/Hint";
 import Reveal from "@/components/motion/Reveal";
 import SplitHeading from "@/components/motion/SplitHeading";
-import { StaggerGroup, StaggerItem } from "@/components/motion/Stagger";
 import { formatRubFromMinor } from "@/lib/money";
 import { readSession } from "@/lib/auth";
+import { serializeTournamentCatalogItem } from "@/lib/tournamentDisplay";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,8 @@ export default async function TournamentsPage() {
       ? `/tournaments/${upcomingTournament.id}/apply`
       : `/sign-in?next=${encodeURIComponent(`/tournaments/${upcomingTournament.id}/apply`)}`
     : "/sign-in";
+
+  const catalogItems = tournaments.map(serializeTournamentCatalogItem);
 
   return (
     <div className="w-full">
@@ -121,52 +124,9 @@ export default async function TournamentsPage() {
         </Reveal>
       )}
 
-      <Reveal className="mt-8 flex items-end justify-between gap-4">
-        <h3 className="text-sm font-black uppercase tracking-[0.16em] text-zinc-500">Все турниры</h3>
-        <span className="ll-kicker text-zinc-600">{tournaments.length} в сезоне</span>
+      <Reveal delay={0.15}>
+        <TournamentsCatalog tournaments={catalogItems} />
       </Reveal>
-      <StaggerGroup className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3" gap={0.06}>
-        {tournaments.map((t) => {
-          const open = t.status === "REGISTRATION_OPEN";
-          const fill = t.maxTeams > 0 ? Math.min(100, Math.round((t.teamApplications.length / t.maxTeams) * 100)) : 0;
-          return (
-            <StaggerItem key={t.id} className="h-full">
-              <GameCoverPanel
-                slug={t.game.slug}
-                className="ll-hover-lift ll-media-zoom group h-full"
-                minHeightClassName="min-h-[190px]"
-                contentClassName="flex h-full min-h-[190px] flex-col p-4"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-400">{t.game.name}</p>
-                  {open ? (
-                    <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-[#14ffec]">
-                      <span className="ll-dot-live" aria-hidden />
-                      приём заявок
-                    </span>
-                  ) : null}
-                </div>
-                <h2 className="mt-2 text-xl font-bold text-zinc-100">{t.title}</h2>
-                <p className="mt-2 text-xs text-zinc-400">
-                  {getTournamentStatusLabel(t.status)} · {t.teamApplications.length}/{t.maxTeams} команд
-                </p>
-                <div className="ll-meter mt-3">
-                  <span style={{ width: `${fill}%` }} />
-                </div>
-                <Link
-                  href={open ? `/tournaments/${t.id}/apply` : `/tournaments/${t.id}`}
-                  className="button-primary mt-auto inline-flex w-fit items-center gap-2 px-3 py-1.5 text-xs uppercase tracking-[0.12em]"
-                >
-                  {open ? "Подать заявку" : "Подробнее"}
-                  <span className="transition-transform duration-300 group-hover:translate-x-1" aria-hidden>
-                    →
-                  </span>
-                </Link>
-              </GameCoverPanel>
-            </StaggerItem>
-          );
-        })}
-      </StaggerGroup>
     </div>
   );
 }

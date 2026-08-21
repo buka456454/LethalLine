@@ -4,6 +4,10 @@ import { ensureCoreGames } from "@/lib/coreGames";
 import { isNotPlayed, NOT_PLAYED_VALUE } from "@/lib/gameQuestionnaireConfig";
 import { prisma } from "@/lib/prisma";
 import { putUserGameProfilesSchema } from "@/lib/schemas";
+import { adminApplicationsUrl, escapeHtml } from "@/lib/telegram/format";
+import { expKeyboard } from "@/lib/telegram/keyboards";
+import { notifyAdmin } from "@/lib/telegram/notify";
+import { resolveLocalUploadPath } from "@/lib/telegram/resolveUpload";
 
 function isProfileEmpty(entry: {
   mmr?: number | null;
@@ -90,6 +94,7 @@ export async function PUT(request: Request) {
     }
 
     const userId = session.sub;
+    const pendingProofGameIds: string[] = [];
 
     await prisma.$transaction(async (tx) => {
       for (const row of parsed.data.profiles) {
@@ -105,6 +110,8 @@ export async function PUT(request: Request) {
           });
           continue;
         }
+
+        if (hasProofValue) pendingProofGameIds.push(row.gameId);
 
         await tx.userGameProfile.upsert({
           where: { userId_gameId: { userId, gameId: row.gameId } },
@@ -147,6 +154,31 @@ export async function PUT(request: Request) {
         });
       }
     });
+
+    if (pendingProofGameIds.length > 0) {
+      const pendingProfiles = await prisma.userGameProfile.findMany({
+        where: {
+          userId,
+          gameId: { in: pendingProofGameIds },
+          experienceVerificationStatus: "PENDING",
+        },
+        include: { game: { select: { name: true } } },
+      });
+      for (const profile of pendingProfiles) {
+        void notifyAdmin(
+          [
+            `<b>Experience proof</b>`,
+            `Игрок: <b>@${escapeHtml(session.username)}</b>`,
+            `Игра: ${escapeHtml(profile.game.name)}`,
+            `<a href="${adminApplicationsUrl()}">Админка</a>`,
+          ].join("\n"),
+          {
+            reply_markup: expKeyboard(profile.id),
+            photoPath: resolveLocalUploadPath(profile.experienceProofImageUrl),
+          },
+        );
+      }
+    }
 
     return ok({ ok: true });
   } catch {

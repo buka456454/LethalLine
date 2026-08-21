@@ -4,6 +4,8 @@ import { hashPassword, sessionPayloadFromUser, setSessionCookie, signSession } f
 import { registerSchema } from "@/lib/schemas";
 import { rateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/security/clientIp";
+import { adminApplicationsUrl, escapeHtml } from "@/lib/telegram/format";
+import { notifyAdmin } from "@/lib/telegram/notify";
 
 export async function POST(request: Request) {
   const ip = getClientIp(request);
@@ -46,6 +48,15 @@ export async function POST(request: Request) {
       phoneVerifiedAt: true,
     },
   });
+
+  void notifyAdmin(
+    [
+      `<b>Новый пользователь</b>`,
+      `@${escapeHtml(user.username)}`,
+      `email: ${escapeHtml(user.email)}`,
+      `<a href="${adminApplicationsUrl()}">Админка</a>`,
+    ].join("\n"),
+  );
 
   const token = await signSession(sessionPayloadFromUser(user));
   await setSessionCookie(token);

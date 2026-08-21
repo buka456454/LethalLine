@@ -1,6 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { hashPassword } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { adminApplicationsUrl, escapeHtml } from "@/lib/telegram/format";
+import { notifyAdmin } from "@/lib/telegram/notify";
 
 function sanitizeUsernameBase(input: string): string {
   const cleaned = input
@@ -29,7 +31,10 @@ async function allocateUniqueUsername(base: string): Promise<string> {
   return `${base}${tail}`.slice(0, 24);
 }
 
-export async function getOrCreateOAuthUserByEmail(emailRaw: string) {
+export async function getOrCreateOAuthUserByEmail(
+  emailRaw: string,
+  opts?: { displayName?: string | null },
+) {
   const email = emailRaw.trim().toLowerCase();
   const existing = await prisma.user.findUnique({
     where: { email },
@@ -41,20 +46,41 @@ export async function getOrCreateOAuthUserByEmail(emailRaw: string) {
       isBanned: true,
       phone: true,
       phoneVerifiedAt: true,
+      displayName: true,
     },
   });
-  if (existing) return existing;
+  if (existing) {
+    const nextName = opts?.displayName?.trim();
+    if (nextName && !existing.displayName) {
+      return prisma.user.update({
+        where: { id: existing.id },
+        data: { displayName: nextName.slice(0, 64) },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          role: true,
+          isBanned: true,
+          phone: true,
+          phoneVerifiedAt: true,
+        },
+      });
+    }
+    return existing;
+  }
 
   const base = usernameBaseFromEmail(email);
   const username = await allocateUniqueUsername(base);
+  const displayName = opts?.displayName?.trim().slice(0, 64) || null;
 
   // OAuth-only account: store strong random hash so local password login isn't implicitly enabled.
   const passwordHash = await hashPassword(randomBytes(32).toString("hex"));
 
-  return prisma.user.create({
+  const user = await prisma.user.create({
     data: {
       email,
       username,
+      displayName,
       passwordHash,
     },
     select: {
@@ -67,4 +93,15 @@ export async function getOrCreateOAuthUserByEmail(emailRaw: string) {
       phoneVerifiedAt: true,
     },
   });
+
+  void notifyAdmin(
+    [
+      `<b>Новый пользователь (OAuth)</b>`,
+      `@${escapeHtml(user.username)}`,
+      `email: ${escapeHtml(user.email)}`,
+      `<a href="${adminApplicationsUrl()}">Админка</a>`,
+    ].join("\n"),
+  );
+
+  return user;
 }

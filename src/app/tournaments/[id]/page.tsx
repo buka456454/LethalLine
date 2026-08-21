@@ -5,6 +5,7 @@ import GameCoverPanel from "@/components/games/GameCoverPanel";
 import TournamentAdminActions from "@/components/tournaments/TournamentAdminActions";
 import TournamentPodium from "@/components/tournaments/TournamentPodium";
 import { isOwnerAdminSession, readSession } from "@/lib/auth";
+import { buildParticipantRosters } from "@/lib/participant-roster";
 import { prisma } from "@/lib/prisma";
 import { getApplicationStatusLabel, getTournamentStatusLabel } from "@/lib/tournamentStatus";
 import { computeTournamentPodium } from "@/lib/tournamentPodium";
@@ -129,21 +130,24 @@ export default async function TournamentDetailsPage({ params }: { params: Promis
     ? `/tournaments/${tournament.id}/apply`
     : `/sign-in?next=${encodeURIComponent(`/tournaments/${tournament.id}/apply`)}`;
   const slotsLeft = Math.max(0, tournament.maxTeams - tournament.teamApplications.length);
+  const matchesUnderway = tournament.status === "IN_PROGRESS";
 
   return (
     <div className="w-full">
-      <div className="sticky top-[7.5rem] z-20 mb-4">
-        <CtaBox
-          primary={{
-            href: canSubmitApplication ? applyHref : `/tournaments/${tournament.id}`,
-            label: canSubmitApplication ? "Подать заявку" : "Приём заявок закрыт",
-          }}
-          secondary={{ href: `/teammates?game=${encodeURIComponent(tournament.game.slug)}`, label: "Найти игроков" }}
-          hint={`Формат ${tournament.teamSize} на ${tournament.teamSize} · ${
-            tournament.entryFeeMinor > 0 ? `взнос ${formatRubFromMinor(tournament.entryFeeMinor)}` : "участие бесплатное"
-          } · свободно ${slotsLeft} мест`}
-        />
-      </div>
+      {matchesUnderway ? null : (
+        <div className="sticky top-[7.5rem] z-20 mb-4">
+          <CtaBox
+            primary={{
+              href: canSubmitApplication ? applyHref : `/tournaments/${tournament.id}`,
+              label: canSubmitApplication ? "Подать заявку" : "Приём заявок закрыт",
+            }}
+            secondary={{ href: `/teammates?game=${encodeURIComponent(tournament.game.slug)}`, label: "Найти игроков" }}
+            hint={`Формат ${tournament.teamSize} на ${tournament.teamSize} · ${
+              tournament.entryFeeMinor > 0 ? `взнос ${formatRubFromMinor(tournament.entryFeeMinor)}` : "участие бесплатное"
+            } · свободно ${slotsLeft} мест`}
+          />
+        </div>
+      )}
       <GameCoverPanel slug={tournament.game.slug} className="ll-media-zoom" contentClassName="relative p-6">
         <span className="ll-beam ll-beam--a" aria-hidden />
         <span className="ll-beam ll-beam--b" aria-hidden />
@@ -219,7 +223,7 @@ export default async function TournamentDetailsPage({ params }: { params: Promis
         </section>
       ) : null}
 
-      {(tournament.registrations.length > 0 || tournament.teamApplications.length > 0) && (
+      {!matchesUnderway && (tournament.registrations.length > 0 || tournament.teamApplications.length > 0) && (
         <section className="ll-frame ll-frame--brackets mt-6 w-full p-6">
           <h2 className="text-lg font-black uppercase tracking-[0.12em] text-[#14ffec]">Участники</h2>
           <p className="mt-1 text-sm text-zinc-500">Нажмите на ник, чтобы открыть профиль игрока.</p>
@@ -275,14 +279,18 @@ export default async function TournamentDetailsPage({ params }: { params: Promis
       {tournament.status !== "REGISTRATION_OPEN" && (
         <div id="bracket">
           <Hint className="mb-2">
-            Матч подсвечен, пока идёт прямо сейчас. Нажмите на ник, чтобы открыть профиль игрока.
+            Карта сетки: колесо и pinch меняют масштаб, перетаскивание двигает карту. Нажмите на команду, чтобы
+            увидеть состав. LIVE подсвечен, пока матч идёт сейчас.
           </Hint>
           <TournamentBracket
             format={tournament.format}
             matches={tournament.matches}
             canEdit={canEditBracket}
-            participantAssets={participantAssets}
-            linkableUsernames={linkableUsernames}
+            rosters={buildParticipantRosters({
+              teamSize: tournament.teamSize,
+              registrations: tournament.registrations,
+              teamApplications: tournament.teamApplications,
+            })}
           />
         </div>
       )}

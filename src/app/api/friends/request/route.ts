@@ -5,6 +5,8 @@ import { requireAuth } from "@/lib/guards";
 import { prisma } from "@/lib/prisma";
 import { rateLimit } from "@/lib/rate-limit";
 import { getFriendshipBetween, validateFriendRequest } from "@/lib/friends";
+import { escapeHtml } from "@/lib/telegram/format";
+import { notifyAdmin } from "@/lib/telegram/notify";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +53,14 @@ export async function POST(request: Request) {
       entityId: friendship.id,
       metadata: { addresseeId: userId, username: target.username },
     });
+
+    void notifyAdmin(
+      [
+        `<b>Запрос в друзья</b>`,
+        `От: @${escapeHtml(session.username)}`,
+        `Кому: @${escapeHtml(target.username)}`,
+      ].join("\n"),
+    );
 
     return ok({
       friendshipId: friendship.id,
