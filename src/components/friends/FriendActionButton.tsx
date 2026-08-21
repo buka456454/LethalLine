@@ -81,7 +81,16 @@ export default function FriendActionButton({ peerUserId, initial, variant = "ful
 
   if (variant === "compact") {
     if (state.kind === "friends") {
-      return <span className={className ?? "text-xs uppercase tracking-[0.12em] text-zinc-500"}>В друзьях</span>;
+      return (
+        <button
+          type="button"
+          disabled={loading}
+          className={className ?? "button-ghost px-3 py-1.5 text-xs"}
+          onClick={() => void remove(state.friendshipId)}
+        >
+          {loading ? "…" : "Удалить"}
+        </button>
+      );
     }
     if (state.kind === "outgoing") {
       return (

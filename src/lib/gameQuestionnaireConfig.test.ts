@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CUSTOM_SENTINEL, MAX_ROLES, mergeSelectValue, parseRoles, serializeRoles, splitSelectValue } from "./gameQuestionnaireConfig";
+import { CUSTOM_SENTINEL, MAX_ROLES, filterRoleOptions, getExperienceScale, mergeSelectValue, normalizeNumericRange, parseRoles, serializeRoles, splitSelectValue } from "./gameQuestionnaireConfig";
 
 const sample = [
   { value: "", label: "—" },
@@ -53,5 +53,31 @@ describe("parseRoles / serializeRoles", () => {
     const stored = serializeRoles(["Дуэлянт", "Страж"]);
     expect(parseRoles(stored)).toEqual(["Дуэлянт", "Страж"]);
     expect(stored.split(" · ").length).toBeLessThanOrEqual(MAX_ROLES);
+  });
+});
+
+describe("filterRoleOptions", () => {
+  it("returns Dota positions without empty/custom", () => {
+    const roles = filterRoleOptions("dota-2").map((o) => o.value);
+    expect(roles).toContain("Позиция 2 — мид");
+    expect(roles).not.toContain("");
+    expect(roles).not.toContain(CUSTOM_SENTINEL);
+  });
+});
+
+describe("getExperienceScale", () => {
+  it("uses MMR for Dota rating and hours as the shared scale", () => {
+    expect(getExperienceScale("dota-2", "rating").shortLabel).toBe("MMR");
+    expect(getExperienceScale("dota-2", "hours").shortLabel).toBe("Часы");
+    expect(getExperienceScale("valorant", "rating")).toMatchObject({ shortLabel: "RR", max: 100, step: 1 });
+  });
+});
+
+describe("normalizeNumericRange", () => {
+  it("swaps inverted bounds", () => {
+    expect(normalizeNumericRange(4000, 1000)).toEqual({ min: 1000, max: 4000 });
+  });
+  it("keeps an open-ended from", () => {
+    expect(normalizeNumericRange(2000, null)).toEqual({ min: 2000 });
   });
 });

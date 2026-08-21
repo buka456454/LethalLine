@@ -8,6 +8,12 @@ import PublicImage from "@/components/ui/PublicImage";
 import UserRoleBadge from "@/components/ui/UserRoleBadge";
 import SplitHeading from "@/components/motion/SplitHeading";
 import FriendActionButton, { type FriendActionState } from "@/components/friends/FriendActionButton";
+import TeammatesFilters from "@/components/teammates/TeammatesFilters";
+import {
+  getExperienceScale,
+  normalizeNumericRange,
+  type ExperienceMetric,
+} from "@/lib/gameQuestionnaireConfig";
 
 type Game = { id: string; name: string; slug: string };
 type TeammateProfile = {
@@ -51,7 +57,9 @@ export default function TeammatesPage() {
 
   const [gameId, setGameId] = useState("");
   const [role, setRole] = useState("");
-  const [experience, setExperience] = useState("");
+  const [metric, setMetric] = useState<ExperienceMetric>("rating");
+  const [expFrom, setExpFrom] = useState<number | null>(null);
+  const [expTo, setExpTo] = useState<number | null>(null);
 
   const loadGames = useCallback(async () => {
     const res = await fetch("/api/games");
@@ -62,11 +70,21 @@ export default function TeammatesPage() {
     setGames(body.games ?? []);
   }, []);
 
-  const loadUsers = useCallback(async (filters?: { gameId?: string; role?: string; experience?: string }) => {
+  const loadUsers = useCallback(async (filters?: {
+    gameId?: string;
+    role?: string;
+    minHours?: number;
+    maxHours?: number;
+    minMmr?: number;
+    maxMmr?: number;
+  }) => {
     const params = new URLSearchParams();
     if (filters?.gameId) params.set("gameId", filters.gameId);
     if (filters?.role) params.set("role", filters.role);
-    if (filters?.experience) params.set("experience", filters.experience);
+    if (filters?.minHours != null) params.set("minHours", String(filters.minHours));
+    if (filters?.maxHours != null) params.set("maxHours", String(filters.maxHours));
+    if (filters?.minMmr != null) params.set("minMmr", String(filters.minMmr));
+    if (filters?.maxMmr != null) params.set("maxMmr", String(filters.maxMmr));
     params.set("take", "100");
 
     const suffix = params.toString() ? `?${params.toString()}` : "";
@@ -92,15 +110,32 @@ export default function TeammatesPage() {
     })();
   }, [loadGames, loadUsers]);
 
+  const selectedSlug = games.find((game) => game.id === gameId)?.slug;
+
+  const buildFilterQuery = () => {
+    const range = normalizeNumericRange(expFrom, expTo);
+    const scale = selectedSlug ? getExperienceScale(selectedSlug, metric) : null;
+    const clamp = (value?: number) => {
+      if (value == null || !scale) return value;
+      return Math.min(scale.max, Math.max(scale.min, value));
+    };
+    const min = clamp(range.min);
+    const max = clamp(range.max);
+    return {
+      gameId: gameId || undefined,
+      role: gameId ? role.trim() || undefined : undefined,
+      minHours: gameId && metric === "hours" ? min : undefined,
+      maxHours: gameId && metric === "hours" ? max : undefined,
+      minMmr: gameId && metric === "rating" ? min : undefined,
+      maxMmr: gameId && metric === "rating" ? max : undefined,
+    };
+  };
+
   const applyFilters = async () => {
     try {
       setLoading(true);
       setError("");
-      await loadUsers({
-        gameId: gameId || undefined,
-        role: role.trim() || undefined,
-        experience: experience.trim() || undefined,
-      });
+      await loadUsers(buildFilterQuery());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка фильтрации");
     } finally {
@@ -111,7 +146,9 @@ export default function TeammatesPage() {
   const resetFilters = async () => {
     setGameId("");
     setRole("");
-    setExperience("");
+    setMetric("rating");
+    setExpFrom(null);
+    setExpTo(null);
     try {
       setLoading(true);
       setError("");
@@ -121,6 +158,20 @@ export default function TeammatesPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const changeGame = (nextGameId: string) => {
+    setGameId(nextGameId);
+    setRole("");
+    setMetric("rating");
+    setExpFrom(null);
+    setExpTo(null);
+  };
+
+  const changeMetric = (next: ExperienceMetric) => {
+    setMetric(next);
+    setExpFrom(null);
+    setExpTo(null);
   };
 
   const startChat = async (peerUserId: string) => {
@@ -144,7 +195,10 @@ export default function TeammatesPage() {
     }
   };
 
-  const hasActiveFilters = useMemo(() => Boolean(gameId || role.trim() || experience.trim()), [experience, gameId, role]);
+  const hasActiveFilters = useMemo(
+    () => Boolean(gameId || role.trim() || expFrom != null || expTo != null),
+    [expFrom, expTo, gameId, role],
+  );
 
   return (
     <div className="w-full space-y-6">
@@ -156,7 +210,7 @@ export default function TeammatesPage() {
             className="mt-1 text-3xl font-black uppercase tracking-[0.12em] text-[#14ffec]"
           />
           <p className="mt-2 text-sm text-zinc-500">
-            Найдите игроков по игре, рангу и роли, напишите им в чат и позовите в свою команду.
+            Найдите игроков по игре, роли и диапазону опыта, напишите им в чат и позовите в свою команду.
           </p>
         </div>
         <Link href="/tournaments" className="button-secondary text-xs uppercase tracking-[0.12em]">
@@ -164,52 +218,23 @@ export default function TeammatesPage() {
         </Link>
       </header>
 
-      <section className="ll-frame ll-frame--brackets p-4">
-        <div className="grid gap-3 md:grid-cols-4">
-          <label className="block">
-            <span className="mb-1 block text-xs uppercase tracking-wider text-zinc-400">Игра</span>
-            <select className="input-base" value={gameId} onChange={(e) => setGameId(e.target.value)}>
-              <option value="">Все игры</option>
-              {games.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs uppercase tracking-wider text-zinc-400">Роль</span>
-            <input
-              className="input-base"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              placeholder="Например IGL, мид, саппорт"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs uppercase tracking-wider text-zinc-400">Опыт</span>
-            <input
-              className="input-base"
-              value={experience}
-              onChange={(e) => setExperience(e.target.value)}
-              placeholder="Например Легенда, 2000, Immortal"
-            />
-          </label>
-          <div className="flex items-end gap-2">
-            <button type="button" className="button-primary w-full" onClick={() => void applyFilters()} disabled={loading}>
-              Применить
-            </button>
-            <button
-              type="button"
-              className="button-secondary text-sm"
-              onClick={() => void resetFilters()}
-              disabled={loading || !hasActiveFilters}
-            >
-              Сброс
-            </button>
-          </div>
-        </div>
-      </section>
+      <TeammatesFilters
+        games={games}
+        loading={loading}
+        gameId={gameId}
+        role={role}
+        metric={metric}
+        expFrom={expFrom}
+        expTo={expTo}
+        onGameId={changeGame}
+        onRole={setRole}
+        onMetric={changeMetric}
+        onExpFrom={setExpFrom}
+        onExpTo={setExpTo}
+        onApply={() => void applyFilters()}
+        onReset={() => void resetFilters()}
+        hasActiveFilters={hasActiveFilters}
+      />
 
       {error && <p className="rounded bg-[#323232] p-2 text-sm text-[#14ffec]">{error}</p>}
       {loading ? (

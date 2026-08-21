@@ -1,5 +1,6 @@
 import Link from "next/link";
 import AccountMenu from "@/components/layout/AccountMenu";
+import FriendsNavButton from "@/components/layout/FriendsNavButton";
 import PublicImage from "@/components/ui/PublicImage";
 import type { ShellData } from "@/lib/shellData";
 import { cn } from "@/lib/cn";
@@ -61,11 +62,14 @@ export default function Header({
               </Link>
             </>
           ) : (
-            <AccountMenu
-              username={session.username}
-              canAdmin={canAdmin}
-              pendingFriendRequests={pendingFriendRequests}
-            />
+            <>
+              <FriendsNavButton pendingCount={pendingFriendRequests} />
+              <AccountMenu
+                username={session.username}
+                canAdmin={canAdmin}
+                pendingFriendRequests={pendingFriendRequests}
+              />
+            </>
           )}
         </div>
       </div>

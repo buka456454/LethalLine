@@ -8,6 +8,7 @@ import MobileDock from "@/components/layout/MobileDock";
 import PhoneVerificationBanner from "@/components/layout/PhoneVerificationBanner";
 import QuestionnaireBanner from "@/components/layout/QuestionnaireBanner";
 import QuestionnaireNudge from "@/components/home/QuestionnaireNudge";
+import FriendRequestToast from "@/components/friends/FriendRequestToast";
 import { loadShellData } from "@/lib/shellData";
 import { getBrandLogos, pickBrandLogo } from "@/lib/brand";
 
@@ -28,6 +29,10 @@ export default async function SiteChrome({ children }: { children: ReactNode }) 
       <SiteFooter />
       <MobileDock shell={shell} />
       <QuestionnaireNudge enabled={Boolean(shell.session && !shell.hasQuestionnaire)} />
+      <FriendRequestToast
+        enabled={Boolean(shell.session)}
+        initialIncoming={shell.incomingFriendRequests}
+      />
     </>
   );
 }

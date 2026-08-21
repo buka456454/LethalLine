@@ -1,6 +1,6 @@
 import { ok, fail } from "@/lib/api";
 import { readSession } from "@/lib/auth";
-import { isNotPlayed, NOT_PLAYED_VALUE } from "@/lib/gameQuestionnaireConfig";
+import { isNotPlayed, NOT_PLAYED_VALUE, normalizeNumericRange } from "@/lib/gameQuestionnaireConfig";
 import { getFriendRelation, type FriendRelation } from "@/lib/friends";
 import { prisma } from "@/lib/prisma";
 
@@ -17,6 +17,14 @@ function toNullableInt(value: string | null): number | undefined {
   return parsed;
 }
 
+function toPrismaIntRange(min?: number, max?: number) {
+  if (min == null && max == null) return undefined;
+  return {
+    ...(min != null ? { gte: min } : {}),
+    ...(max != null ? { lte: max } : {}),
+  };
+}
+
 export async function GET(request: Request) {
   try {
     const session = await readSession();
@@ -25,15 +33,26 @@ export async function GET(request: Request) {
     const gameSlug = toNullableTrimmed(url.searchParams.get("gameSlug"));
     const role = toNullableTrimmed(url.searchParams.get("role"));
     const experience = toNullableTrimmed(url.searchParams.get("experience"));
-    const minHours = toNullableInt(url.searchParams.get("minHours"));
-    const minMmr = toNullableInt(url.searchParams.get("minMmr"));
+    const hours = normalizeNumericRange(
+      toNullableInt(url.searchParams.get("minHours")),
+      toNullableInt(url.searchParams.get("maxHours")),
+    );
+    const mmr = normalizeNumericRange(
+      toNullableInt(url.searchParams.get("minMmr")),
+      toNullableInt(url.searchParams.get("maxMmr")),
+    );
+    const hoursPlayed = toPrismaIntRange(hours.min, hours.max);
+    const mmrRange = toPrismaIntRange(mmr.min, mmr.max);
     const take = Math.min(100, toNullableInt(url.searchParams.get("take")) ?? 50);
+    const hasProfileFilters = Boolean(
+      gameId || gameSlug || role || experience || hoursPlayed || mmrRange,
+    );
 
     const users = await prisma.user.findMany({
       where: {
         isBanned: false,
         ...(session ? { id: { not: session.sub } } : {}),
-        ...(gameId || gameSlug || role || experience || minHours != null || minMmr != null
+        ...(hasProfileFilters
           ? {
               gameProfiles: {
                 some: {
@@ -49,8 +68,8 @@ export async function GET(request: Request) {
                         ],
                       }
                     : {}),
-                  ...(minHours != null ? { hoursPlayed: { gte: minHours } } : {}),
-                  ...(minMmr != null ? { mmr: { gte: minMmr } } : {}),
+                  ...(hoursPlayed ? { hoursPlayed } : {}),
+                  ...(mmrRange ? { mmr: mmrRange } : {}),
                 },
               },
             }

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { canAccessAdminTabSession, readSession, type SessionPayload } from "@/lib/auth";
+import { listFriendships } from "@/lib/friends";
 
 export type ShellCup = {
   id: string;
@@ -14,11 +15,23 @@ export type ShellCup = {
   requiresVerifiedExperience: boolean;
 };
 
+export type IncomingFriendPreview = {
+  friendshipId: string;
+  createdAt: string;
+  user: {
+    id: string;
+    username: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+  };
+};
+
 export type ShellData = {
   session: SessionPayload | null;
   canAdmin: boolean;
   unreadChats: number;
   pendingFriendRequests: number;
+  incomingFriendRequests: IncomingFriendPreview[];
   cup: ShellCup | null;
   rankVerified: boolean;
   hasQuestionnaire: boolean;
@@ -33,6 +46,7 @@ export async function loadShellData(): Promise<ShellData> {
     canAdmin: false,
     unreadChats: 0,
     pendingFriendRequests: 0,
+    incomingFriendRequests: [],
     cup: null,
     rankVerified: false,
     hasQuestionnaire: false,
@@ -78,7 +92,7 @@ export async function loadShellData(): Promise<ShellData> {
       return { ...empty, cup };
     }
 
-    const [unreadChats, pendingFriendRequests, user, profiles] = await Promise.all([
+    const [unreadChats, pendingFriendRequests, incomingRows, user, profiles] = await Promise.all([
       prisma.chatMessage.count({
         where: {
           readAt: null,
@@ -91,6 +105,7 @@ export async function loadShellData(): Promise<ShellData> {
       prisma.friendship.count({
         where: { addresseeId: session.sub, status: "PENDING" },
       }),
+      listFriendships(session.sub, "incoming", 8, 0),
       prisma.user.findUnique({
         where: { id: session.sub },
         select: { phone: true, phoneVerifiedAt: true },
@@ -116,12 +131,23 @@ export async function loadShellData(): Promise<ShellData> {
     );
     const rankVerified = profiles.some((p) => p.experienceVerificationStatus === "APPROVED");
     const needsPhoneVerify = Boolean(user?.phone) && !user?.phoneVerifiedAt;
+    const incomingFriendRequests: IncomingFriendPreview[] = incomingRows.map((row) => ({
+      friendshipId: row.friendshipId,
+      createdAt: row.createdAt.toISOString(),
+      user: {
+        id: row.user.id,
+        username: row.user.username,
+        displayName: row.user.displayName,
+        avatarUrl: row.user.avatarUrl,
+      },
+    }));
 
     return {
       session,
       canAdmin: canAccessAdminTabSession(session),
       unreadChats,
       pendingFriendRequests,
+      incomingFriendRequests,
       cup,
       rankVerified,
       hasQuestionnaire,

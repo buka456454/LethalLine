@@ -17,13 +17,18 @@ export type GameQuestionnaireUi = {
     placeholder: string;
     /** Если true — поле можно оставить пустым без потери смысла */
     emphasizeOptional?: boolean;
+    min?: number;
+    max?: number;
+    step?: number;
+    /** Короткая подпись для переключателя фильтра (MMR, RR, ELO) */
+    shortLabel?: string;
   };
   rank: {
     mode: "freeText" | "select";
     label: string;
     options?: SelectOption[];
   };
-  hours: { label: string; placeholder: string };
+  hours: { label: string; placeholder: string; min?: number; max?: number; step?: number };
   role: {
     mode: "freeText" | "select";
     label: string;
@@ -180,9 +185,13 @@ const CONFIG: Record<string, GameQuestionnaireUi> = {
       show: true,
       label: "MMR (рейтинговый матчмейкинг)",
       placeholder: "Например 3500",
+      shortLabel: "MMR",
+      min: 0,
+      max: 20_000,
+      step: 100,
     },
     rank: { mode: "select", label: "Медаль рейтинга", options: dotaMedalOptions() },
-    hours: { label: "Часы в Dota 2", placeholder: "Steam / общее время" },
+    hours: { label: "Часы в Dota 2", placeholder: "Steam / общее время", min: 0, max: 200_000, step: 50 },
     role: { mode: "select", label: "Позиции", options: DOTA_ROLES },
   },
   valorant: {
@@ -194,9 +203,13 @@ const CONFIG: Record<string, GameQuestionnaireUi> = {
       label: "RR в текущем ранге (опционально)",
       placeholder: "0–100",
       emphasizeOptional: true,
+      shortLabel: "RR",
+      min: 0,
+      max: 100,
+      step: 1,
     },
     rank: { mode: "select", label: "Ранг актов", options: valorantRankOptions() },
-    hours: { label: "Часы в Valorant", placeholder: "По желанию" },
+    hours: { label: "Часы в Valorant", placeholder: "По желанию", min: 0, max: 200_000, step: 50 },
     role: { mode: "select", label: "Роли", options: VAL_ROLES },
   },
   cs2: {
@@ -208,9 +221,13 @@ const CONFIG: Record<string, GameQuestionnaireUi> = {
       label: "Premier ELO или Elo Faceit (опционально)",
       placeholder: "Например 15000 или 2500",
       emphasizeOptional: true,
+      shortLabel: "ELO",
+      min: 0,
+      max: 20_000,
+      step: 100,
     },
     rank: { mode: "select", label: "Ранг в соревновательном режиме", options: cs2RankOptions() },
-    hours: { label: "Часы в CS2", placeholder: "Steam" },
+    hours: { label: "Часы в CS2", placeholder: "Steam", min: 0, max: 200_000, step: 50 },
     role: { mode: "select", label: "Роли в команде", options: CS2_ROLES },
   },
 };
@@ -223,6 +240,10 @@ const DEFAULT_UI: GameQuestionnaireUi = {
     label: "Числовой рейтинг (опционально)",
     placeholder: "Очки рейтинга",
     emphasizeOptional: true,
+    shortLabel: "Рейтинг",
+    min: 0,
+    max: 20_000,
+    step: 100,
   },
   rank: {
     mode: "select",
@@ -232,7 +253,7 @@ const DEFAULT_UI: GameQuestionnaireUi = {
       { value: CUSTOM_SENTINEL, label: "Свой вариант (ввести вручную)…" },
     ]),
   },
-  hours: { label: "Часы в игре", placeholder: "Например 1200" },
+  hours: { label: "Часы в игре", placeholder: "Например 1200", min: 0, max: 200_000, step: 50 },
   role: { mode: "freeText", label: "Роль" },
 };
 
@@ -262,3 +283,57 @@ export function mergeSelectValue(select: string, custom: string): string {
   }
   return select.trim();
 }
+
+/** Роли для фильтра поиска: без пустого пункта, «своего варианта» и «не играл». */
+export function filterRoleOptions(slug: string): SelectOption[] {
+  const ui = getGameQuestionnaireUi(slug);
+  return (ui.role.options ?? []).filter(
+    (option) => option.value && option.value !== CUSTOM_SENTINEL && option.value !== NOT_PLAYED_VALUE,
+  );
+}
+
+export type ExperienceMetric = "rating" | "hours";
+
+export type ExperienceScale = {
+  metric: ExperienceMetric;
+  label: string;
+  shortLabel: string;
+  min: number;
+  max: number;
+  step: number;
+};
+
+export function getExperienceScale(slug: string, metric: ExperienceMetric): ExperienceScale {
+  const ui = getGameQuestionnaireUi(slug);
+  if (metric === "hours") {
+    return {
+      metric: "hours",
+      label: ui.hours.label,
+      shortLabel: "Часы",
+      min: ui.hours.min ?? 0,
+      max: ui.hours.max ?? 200_000,
+      step: ui.hours.step ?? 50,
+    };
+  }
+  return {
+    metric: "rating",
+    label: ui.numeric.label,
+    shortLabel: ui.numeric.shortLabel ?? "Рейтинг",
+    min: ui.numeric.min ?? 0,
+    max: ui.numeric.max ?? 20_000,
+    step: ui.numeric.step ?? 100,
+  };
+}
+
+/** Если «от» больше «до» — меняем местами, как в магазинных фильтрах. */
+export function normalizeNumericRange(
+  from: number | null | undefined,
+  to: number | null | undefined,
+): { min?: number; max?: number } {
+  const start = from == null || !Number.isFinite(from) ? undefined : Math.trunc(from);
+  const end = to == null || !Number.isFinite(to) ? undefined : Math.trunc(to);
+  if (start == null && end == null) return {};
+  if (start != null && end != null && start > end) return { min: end, max: start };
+  return { min: start, max: end };
+}
+

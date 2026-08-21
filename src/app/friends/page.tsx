@@ -108,6 +108,7 @@ export default async function FriendsPage({
                         peerUserId={item.user.id}
                         initial={{ kind: "friends", friendshipId: item.friendshipId }}
                         variant="compact"
+                        className="button-secondary px-3 py-1.5 text-xs"
                       />
                     ) : null}
                     <StartChatButton peerUserId={item.user.id} className="button-primary px-3 py-1.5 text-xs" />
